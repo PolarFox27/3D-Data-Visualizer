@@ -10,7 +10,6 @@ DISABLE_WARNINGS_PUSH()
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
-// #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 DISABLE_WARNINGS_POP()
 #include <algorithm>
@@ -37,12 +36,9 @@ const int HEIGHT = 800;
 
 bool show_imgui = true;
 bool debug = true;
-bool diffuseLighting = false;
-bool phongSpecularLighting = false;
-bool blinnPhongSpecularLighting = false;
-bool toonLightingDiffuse = false;
-bool toonLightingSpecular = false;
-bool toonxLighting = false;
+
+bool render_quad = false;
+int quad_mode = 0;
 
 struct {
     // Diffuse (Lambert)
@@ -71,6 +67,14 @@ struct Light {
 
 std::vector<Light> lights {};
 size_t selectedLightIndex = 0;
+
+// Pixels
+struct Pixel {
+    unsigned char R; 
+    unsigned char G; 
+    unsigned char B;
+};
+
 
 static glm::vec3 userInteractionSphere(const glm::vec3& selectedPos, const glm::vec3& camPos)
 {
@@ -125,38 +129,25 @@ void selectPreviousLight()
 
 void imgui()
 {
-
-    // Define UI here
+    // UI Menu
     if (!show_imgui)
         return;
 
-    ImGui::Begin("Practical 3: Modern Shading");
+    // Title
+    ImGui::Begin("3D Data Visualizer");
     ImGui::Text("Press \\ to show/hide this menu");
-
     ImGui::Separator();
-    ImGui::Text("Material parameters");
-    ImGui::SliderFloat("Shininess", &shadingData.shininess, 0.0f, 100.f);
-
-    // Color pickers for Kd and Ks
-    ImGui::ColorEdit3("Kd", &shadingData.kd[0]);
-    ImGui::ColorEdit3("Ks", &shadingData.ks[0]);
-
-    ImGui::SliderInt("Toon Discretization", &shadingData.toonDiscretize, 1, 10);
-    ImGui::SliderFloat("Toon Specular Threshold", &shadingData.toonSpecularThreshold, 0.0f, 1.0f);
-
+    
+    // Quads Rendering
+    ImGui::Text("Simple Quads");
+    ImGui::Checkbox("Render Quads", &render_quad);
+    std::array quadModeNames{ "Flat", "Elevated Pixels" };
+    ImGui::Combo("Quad Rendering Mode", &quad_mode, quadModeNames.data(), (int)quadModeNames.size());
     ImGui::Separator();
-    ImGui::Text("Shading modes");
-    ImGui::Checkbox("0: Debug", &debug);
-    ImGui::Checkbox("1: Diffuse Lighting", &diffuseLighting);
-    ImGui::Checkbox("2: Phong Specular Lighting", &phongSpecularLighting);
-    ImGui::Checkbox("3: Blinn-Phong Specular Lighting", &blinnPhongSpecularLighting);
-    ImGui::Checkbox("4: Toon Lighting Diffuse", &toonLightingDiffuse);
-    ImGui::Checkbox("5: Toon Lighting Specular", &toonLightingSpecular);
-    ImGui::Checkbox("6: Toon X Lighting", &toonxLighting);
 
-    ImGui::Separator();
+
+
     ImGui::Text("Lights");
-
     // Display lights in scene
     std::vector<std::string> itemStrings = {};
     for (size_t i = 0; i < lights.size(); i++) {
@@ -211,6 +202,31 @@ std::optional<glm::vec3> tomlArrayToVec3(const toml::array* array)
     return output;
 }
 
+static std::vector<Pixel> loadPixelsFromImage(const char* filePath, int& width, int& height) {
+    // Load image data
+    int channels;
+    unsigned char* data = stbi_load(filePath, &width, &height, &channels, STBI_rgb);
+    if (!data) {
+        std::cerr << "Failed to load image: " << filePath << std::endl;
+        return {};
+    }
+
+    // Extract pixels from image data
+    std::vector<Pixel> pixels;
+    pixels.reserve(width * height);
+    for (int i = 0; i < width * height; ++i) {
+        Pixel pixel;
+        pixel.R = data[i * 3 + 0]; // R
+        pixel.G = data[i * 3 + 1]; // G
+        pixel.B = data[i * 3 + 2]; // B
+        pixels.push_back(pixel);
+    }
+
+    // Free the image data
+    stbi_image_free(data);
+    return pixels;
+}
+
 // Program entry point. Everything starts here.
 int main(int argc, char** argv)
 {
@@ -254,12 +270,12 @@ int main(int argc, char** argv)
     Trackball trackball { &window, glm::radians(fovY) };
     trackball.setCamera(look_at, rotations, dist);
 
-    // read mesh
-    auto mesh_path = std::string(RESOURCE_ROOT) + config["mesh"]["path"].value_or("resources/dragon.obj");
+    // read data path
+    auto data_path = std::string(RESOURCE_ROOT) + config["data"]["path"].value_or("resources/default.png");
+    int image_width, image_height;
+    const std::vector<Pixel> pixels = loadPixelsFromImage(data_path.c_str(), image_width, image_height);
+    std::cout << "Loaded image " << data_path.c_str() << " with dimensions " << image_width << "x" << image_height << std::endl;
 
-    std::cout << mesh_path << std::endl;
-
-    const Mesh mesh = loadMesh(argc == 2 ? argv[1] : mesh_path)[0];
 
     window.registerKeyCallback([&](int key, int /* scancode */, int action, int /* mods */) {
         if (key == '\\' && action == GLFW_PRESS) {
@@ -274,32 +290,6 @@ int main(int argc, char** argv)
         switch (key) {
         case GLFW_KEY_0: {
             debug = !debug;
-            break;
-        }
-        case GLFW_KEY_1: {
-            diffuseLighting = !diffuseLighting;
-            break;
-        }
-        case GLFW_KEY_2: {
-            phongSpecularLighting = !phongSpecularLighting;
-            break;
-        }
-        case GLFW_KEY_3: {
-            blinnPhongSpecularLighting = !blinnPhongSpecularLighting;
-            break;
-        }
-        case GLFW_KEY_4: {
-            toonLightingDiffuse = !toonLightingDiffuse;
-            break;
-        }
-        case GLFW_KEY_5: {
-            toonLightingSpecular = !toonLightingSpecular;
-            if (toonLightingSpecular)
-                toonLightingDiffuse = true;
-            break;
-        }
-        case GLFW_KEY_6: {
-            toonxLighting = !toonxLighting;
             break;
         }
         case GLFW_KEY_7: {
@@ -330,20 +320,6 @@ int main(int argc, char** argv)
             resetLights();
             return;
         }
-        case GLFW_KEY_SPACE: {
-            const auto optWorldPoint = getWorldPositionOfPixel(trackball, window.getCursorPixel());
-            if (optWorldPoint) {
-                // std::cout << "World point: (" << optWorldPoint->x << ", " << optWorldPoint->y << ", " << optWorldPoint->z << ")" << std::endl;
-                // lights[selectedLightIndex].position = worldPoint;
-                const size_t selectedVertexIdx = getClosestVertexIndex(mesh, *optWorldPoint);
-                if (selectedVertexIdx != 0xFFFFFFFF) {
-                    const Vertex& selectedVertex = mesh.vertices[selectedVertexIdx];
-                    userInteraction(trackball.position(), selectedVertex.position, selectedVertex.normal);
-                }
-            }
-            return;
-        }
-
         case GLFW_KEY_T: {
             if (shiftPressed)
                 shadingData.toonSpecularThreshold += 0.001f;
@@ -382,48 +358,6 @@ int main(int argc, char** argv)
             return;
         };
 
-        if (!toonLightingDiffuse && !toonxLighting) {
-            std::cout << "REALISTIC SHADING!" << std::endl;
-            std::cout << "__________________" << std::endl;
-            if (diffuseLighting) {
-                std::cout << ("DiffuseLighting ON") << std::endl;
-            } else {
-                std::cout << ("DiffuseLighting OFF") << std::endl;
-            }
-
-            if (phongSpecularLighting) {
-                std::cout << "PhongSpecularLighting ON" << std::endl;
-                std::cout << "BlinnPhongSpecularLighting IGNORED" << std::endl;
-            } else if (blinnPhongSpecularLighting) {
-                std::cout << "PhongSpecularLighting OFF" << std::endl;
-                std::cout << "BlinnPhongSpecularLighting ON" << std::endl;
-            } else {
-                std::cout << "PhongSpecularLighting OFF" << std::endl;
-                std::cout << "BlinnPhongSpecularLighting OFF" << std::endl;
-            }
-        } else {
-            std::cout << "TOON SHADING!" << std::endl;
-            std::cout << "_____________" << std::endl;
-            if (toonxLighting) {
-                std::cout << "ToonLightingDiffuse IGNORED" << std::endl;
-                std::cout << "ToonLightingSpecular IGNORED" << std::endl;
-                std::cout << "ToonX ON" << std::endl;
-            } else {
-                if (toonLightingDiffuse) {
-                    std::cout << "ToonLightingDiffuse ON" << std::endl;
-                } else {
-                    std::cout << "ToonLightingDiffuse OFF" << std::endl;
-                }
-
-                if (toonLightingSpecular) {
-                    std::cout << "ToonLightingSpecular ON" << std::endl;
-                } else {
-                    std::cout << "ToonLightingSpecular OFF" << std::endl;
-                }
-                std::cout << "ToonX OFF" << std::endl;
-            }
-        }
-
         switch (interfaceLightPlacement) {
         case LightPlacementValue::Sphere: {
             std::cout << "Interaction: LightPlacementValue::Sphere" << std::endl;
@@ -454,14 +388,12 @@ int main(int argc, char** argv)
 
     glGenBuffers(1, &vbo);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(mesh.vertices.size() * sizeof(Vertex)), mesh.vertices.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     GLuint ibo;
     // Create index buffer object (IBO)
     glGenBuffers(1, &ibo);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, static_cast<GLsizeiptr>(mesh.triangles.size() * sizeof(decltype(Mesh::triangles)::value_type)), mesh.triangles.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
     // Bind vertex data to shader inputs using their index (location).
@@ -484,10 +416,6 @@ int main(int argc, char** argv)
 
     glBindVertexArray(0);
 
-    // Load image from disk to CPU memory.
-    int width, height, sourceNumChannels; // Number of channels in source image. pixels will always be the requested number of channels (3).
-    stbi_uc* pixels = stbi_load(RESOURCE_ROOT "resources/toon_map.png", &width, &height, &sourceNumChannels, STBI_rgb);
-
     // Create a texture on the GPU with 3 channels with 8 bits each.
     GLuint texToon;
     glGenTextures(1, &texToon);
@@ -500,11 +428,6 @@ int main(int argc, char** argv)
     // Set interpolation for texture sampling (GL_NEAREST for no interpolation).
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels);
-
-    // Free the CPU memory after we copied the image to the GPU.
-    stbi_image_free(pixels);
 
     // Enable depth testing.
     glEnable(GL_DEPTH_TEST);
@@ -543,9 +466,6 @@ int main(int argc, char** argv)
             glVertexAttribPointer(shader.getAttributeLocation("pos"), 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
             glVertexAttribPointer(shader.getAttributeLocation("normal"), 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, normal));
 
-            // Execute draw command.
-            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(mesh.triangles.size()) * 3, GL_UNSIGNED_INT, nullptr);
-
             glBindVertexArray(0);
         };
 
@@ -563,55 +483,6 @@ int main(int argc, char** argv)
             glDepthFunc(GL_EQUAL); // Only draw a pixel if it's depth matches the value stored in the depth buffer.
             glEnable(GL_BLEND); // Enable blending.
             glBlendFunc(GL_SRC_ALPHA, GL_ONE); // Additive blending.
-
-            for (const Light& light : lights) {
-                renderedSomething = false;
-                if (!renderedSomething) {
-                    if (toonxLighting) {
-                        xToonShader.bind();
-
-                        // === SET YOUR X-TOON UNIFORMS HERE ===
-                        // Values that you may want to pass to the shader are stored in light, shadingData and cameraPos and texToon.
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, texToon);
-                        glUniform1i(xToonShader.getUniformLocation("xxx"), 0); // Change xxx to the uniform name that you want to use.
-                        render(xToonShader);
-                    } else {
-                        if (toonLightingDiffuse) {
-                            toonDiffuseShader.bind();
-
-                            // === SET YOUR DIFFUSE TOON UNIFORMS HERE ===
-                            // Values that you may want to pass to the shader are stored in light, shadingData.
-                            render(toonDiffuseShader);
-                        }
-                        if (toonLightingSpecular) {
-                            toonSpecularShader.bind();
-
-                            // === SET YOUR SPECULAR TOON UNIFORMS HERE ===
-                            // Values that you may want to pass to the shader are stored in light, shadingData and cameraPos.
-                            render(toonSpecularShader);
-                        }
-                    }
-                }
-                if (!renderedSomething) {
-                    if (diffuseLighting) {
-                        lambertShader.bind();
-                        // === SET YOUR LAMBERT UNIFORMS HERE ===
-                        // Values that you may want to pass to the shader include light.position, light.color and shadingData.kd.
-                        // glUniform1f(lambertShader.getUniformLocation("floatName"), 1, floatValue);
-                        // glUniform3fv(lambertShader.getUniformLocation("vecName"), 1, glm::value_ptr(glmVector));
-                        render(lambertShader);
-                    }
-                    if (phongSpecularLighting || blinnPhongSpecularLighting) {
-                        const Shader &shader = phongSpecularLighting ? phongShader : blinnPhongShader;
-                        shader.bind();
-
-                            // === SET YOUR PHONG/BLINN PHONG UNIFORMS HERE ===
-                            // Values that you may want to pass to the shader are stored in light, shadingData and cameraPos.
-                        render(shader);
-                    }
-                }
-            }
 
             // Restore default depth test settings and disable blending.
             glDepthFunc(GL_LEQUAL);
