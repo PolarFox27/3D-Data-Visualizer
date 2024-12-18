@@ -37,8 +37,21 @@ const int HEIGHT = 800;
 bool show_imgui = true;
 bool debug = true;
 
+
+// Dot Style 
+enum class DotRenderingStyle {
+    FixedColor = 0,
+    HeightGradient = 1,
+    CameraDistanceGradient = 2
+};
+
 bool render_quad = false;
-int quad_mode = 0;
+bool render_dots = false;
+bool render_wireframe = false;
+DotRenderingStyle dot_render_style = DotRenderingStyle::FixedColor;
+glm::vec3 dot_color_1 {1.0f, 0.0f, 0.0f};
+glm::vec3 dot_color_2 { 0.0f, 1.0f, 0.0f };
+
 
 struct {
     // Diffuse (Lambert)
@@ -139,12 +152,22 @@ void imgui()
     ImGui::Separator();
     
     // Quads Rendering
-    ImGui::Text("Simple Quads");
-    ImGui::Checkbox("Render Quads", &render_quad);
-    std::array quadModeNames{ "Flat", "Elevated Pixels" };
-    ImGui::Combo("Quad Rendering Mode", &quad_mode, quadModeNames.data(), (int)quadModeNames.size());
+    ImGui::Text("Simple Quad");
+    ImGui::Checkbox("Render Flat Image", &render_quad);
     ImGui::Separator();
 
+    // Dots Rendering
+    ImGui::Text("Dots");
+    ImGui::Checkbox("Render Dots", &render_dots);
+    ImGui::ColorEdit3("Color 1", &dot_color_1[0]);
+    ImGui::ColorEdit3("Color 2", &dot_color_2[0]);
+    // Dropdown for dot render style
+    std::array dot_render_style_names{ "Fixed Color", "Gradient based on Height", "Gradient based on distance to Camera" };
+    int current_dot_render_style = static_cast<int>(dot_render_style);
+    ImGui::Combo("Dot Rendering Style", &current_dot_render_style, dot_render_style_names.data(), (int)dot_render_style_names.size());
+    dot_render_style = static_cast<DotRenderingStyle>(current_dot_render_style);
+    ImGui::Checkbox("Render Wireframe", &render_wireframe);
+    ImGui::Separator();
 
 
     ImGui::Text("Lights");
@@ -375,13 +398,6 @@ int main(int argc, char** argv)
     });
 
     const Shader lightShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/light_vertex.glsl").addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/light_frag.glsl").build();
-    const Shader debugShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/vertex.glsl").addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/debug_frag.glsl").build();
-    const Shader lambertShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/vertex.glsl").addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/lambert_frag.glsl").build();
-    const Shader phongShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/vertex.glsl").addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/phong_frag.glsl").build();
-    const Shader blinnPhongShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/vertex.glsl").addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/blinn_phong_frag.glsl").build();
-    const Shader toonDiffuseShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/vertex.glsl").addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/toon_diffuse_frag.glsl").build();
-    const Shader toonSpecularShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/vertex.glsl").addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/toon_specular_frag.glsl").build();
-    const Shader xToonShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/vertex.glsl").addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/xtoon_frag.glsl").build();
 
     // Create Vertex Buffer Object and Index Buffer Objects.
     GLuint vbo;
@@ -468,32 +484,6 @@ int main(int argc, char** argv)
 
             glBindVertexArray(0);
         };
-
-        if (!debug) {
-            // Draw mesh into depth buffer but disable color writes.
-            glDepthMask(GL_TRUE);
-            glDepthFunc(GL_LEQUAL);
-            glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-            debugShader.bind();
-            render(debugShader);
-
-            // Draw the mesh again for each light / shading model.
-            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE); // Enable color writes.
-            glDepthMask(GL_FALSE); // Disable depth writes.
-            glDepthFunc(GL_EQUAL); // Only draw a pixel if it's depth matches the value stored in the depth buffer.
-            glEnable(GL_BLEND); // Enable blending.
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE); // Additive blending.
-
-            // Restore default depth test settings and disable blending.
-            glDepthFunc(GL_LEQUAL);
-            glDepthMask(GL_TRUE);
-            glDisable(GL_BLEND);
-        }
-        if (!renderedSomething) {
-            debugShader.bind();
-            // glUniform3fv(debugShader.getUniformLocation("viewPos"), 1, glm::value_ptr(cameraPos)); // viewPos.
-            render(debugShader);
-        }
 
         // Draw lights as (square) points.
         //glDepthMask(GL_FALSE);
