@@ -15,7 +15,6 @@ DISABLE_WARNINGS_POP()
 #include <algorithm>
 #include <cassert>
 #include <cstdlib> // EXIT_FAILURE
-#include <framework/mesh.h>
 #include <framework/shader.h>
 #include <framework/trackball.h>
 #include <framework/window.h>
@@ -33,10 +32,7 @@ DISABLE_WARNINGS_POP()
 // Configuration
 const int WIDTH = 1200;
 const int HEIGHT = 800;
-
 bool show_imgui = true;
-bool debug = true;
-
 
 // Dot Style 
 enum class DotRenderingStyle {
@@ -52,72 +48,29 @@ DotRenderingStyle dot_render_style = DotRenderingStyle::FixedColor;
 glm::vec3 dot_color_1 {1.0f, 0.0f, 0.0f};
 glm::vec3 dot_color_2 { 0.0f, 1.0f, 0.0f };
 
-
-struct {
-    // Diffuse (Lambert)
-    glm::vec3 kd { 0.5f };
-    // Specular (Phong/Blinn Phong)
-    glm::vec3 ks { 0.5f };
-    float shininess = 3.0f;
-    // Toon
-    int toonDiscretize = 4;
-    float toonSpecularThreshold = 0.49f;
-} shadingData;
-
-// Light Placement state
-enum class LightPlacementValue {
-    Sphere = 0,
-    Shadow = 1,
-    Specular = 2
-};
-LightPlacementValue interfaceLightPlacement { LightPlacementValue::Sphere };
-
 // Lights
 struct Light {
     glm::vec3 position;
     glm::vec3 color;
 };
-
 std::vector<Light> lights {};
 size_t selectedLightIndex = 0;
 
-// Pixels
+// Pixels and Image Data
 struct Pixel {
     unsigned char R; 
     unsigned char G; 
     unsigned char B;
 };
+struct ImageData {
+    std::vector<Pixel> pixels;
+    int width;
+    int height;
+};
+ImageData image_data;
 
 
-static glm::vec3 userInteractionSphere(const glm::vec3& selectedPos, const glm::vec3& camPos)
-{
-    // RETURN the new light position, defined as follows.
-    // selectedPos is a location on the mesh. Use this location to place the light source to cover the location as seen from camPos.
-    // Further, the light should be at a distance of 1.5 from the origin of the scene - in other words, located on a sphere of radius 1.5 around the origin.
-    return glm::vec3(1, 1, 1);
-}
-
-static glm::vec3 userInteractionShadow(const glm::vec3& selectedPos, const glm::vec3& selectedNormal, const glm::vec3& lightPos)
-{
-    // RETURN the new light position such that the light towards the selectedPos is orthogonal to the normal at that location
-    //--- in this way, the shading boundary will be exactly at this location.
-    // there are several ways to do this, choose one you deem appropriate given the current light position
-    // no panic, I will not judge what solution you chose, as long as the above condition is met.
-    return glm::vec3(1, 0, 1);
-}
-
-static glm::vec3 userInteractionSpecular(const glm::vec3& selectedPos, const glm::vec3& selectedNormal, const glm::vec3& lightPos, const glm::vec3& cameraPos)
-{
-    // RETURN the new light position such that a specularity (highlight) will be located at selectedPos, when viewed from cameraPos and lit from lightPos.
-    // please ensure also that the light is at a distance of 1 from selectedPos! If the camera is on the wrong side of the surface (normal pointing the other way),
-    // then just return the original light position.
-    // There is only ONE way of doing this!
-    return glm::vec3(0, 1, 1);
-}
-
-static size_t getClosestVertexIndex(const Mesh& mesh, const glm::vec3& pos);
 static std::optional<glm::vec3> getWorldPositionOfPixel(const Trackball&, const glm::vec2& pixel);
-static void userInteraction(const glm::vec3& cameraPos, const glm::vec3& selectedPos, const glm::vec3& selectedNormal);
 static void printHelp();
 
 void resetLights()
@@ -140,7 +93,7 @@ void selectPreviousLight()
         --selectedLightIndex;
 }
 
-void imgui()
+static void renderGUI()
 {
     // UI Menu
     if (!show_imgui)
@@ -193,19 +146,13 @@ void imgui()
         resetLights();
     }
 
-    // Dropdown for interaction mode
-    std::array interactionModeNames { "Shadow", "Sphere", "Specular" };
-    int current_mode = static_cast<int>(interfaceLightPlacement);
-    ImGui::Combo("User Interaction Mode", &current_mode, interactionModeNames.data(), (int)interactionModeNames.size());
-    interfaceLightPlacement = static_cast<LightPlacementValue>(current_mode);
-
     ImGui::End();
     ImGui::Render();
 }
 
-std::optional<glm::vec3> tomlArrayToVec3(const toml::array* array)
+static glm::vec3 tomlArrayToVec3(const toml::array* array)
 {
-    glm::vec3 output {};
+    glm::vec3 output {0.0f};
 
     if (array) {
         int i = 0;
@@ -250,210 +197,106 @@ static std::vector<Pixel> loadPixelsFromImage(const char* filePath, int& width, 
     return pixels;
 }
 
-// Program entry point. Everything starts here.
-int main(int argc, char** argv)
-{
-
-    // parse initial scene config
+static Trackball readInitialConfig(Window* window) {
+    // Parse initial scene config TOML
+    std::cout << "Loading TOML config... ";
     toml::table config;
     try {
         config = toml::parse_file(RESOURCE_ROOT "resources/default_scene.toml");
-    } catch (const toml::parse_error& ) {
+        std::cout << "done." << std::endl;
+    }
+    catch (const toml::parse_error&) {
         std::cerr << "parsing failed" << std::endl;
     }
 
-    // read material data
-    shadingData.kd = tomlArrayToVec3(config["material"]["kd"].as_array()).value();
-    shadingData.ks = tomlArrayToVec3(config["material"]["ks"].as_array()).value();
-    shadingData.shininess = config["material"]["shininess"].value_or(0.0f);
-    shadingData.toonDiscretize = (int) config["material"]["toonDiscretize"].value_or(0);
-    shadingData.toonSpecularThreshold = config["material"]["toonSpecularThreshold"].value_or(0.0f);
-
-    // read lights
-    lights = std::vector<Light> {};
+    // read lights from TOML
+    lights = std::vector<Light>{};
     size_t num_lights = config["lights"]["positions"].as_array()->size();
     for (size_t i = 0; i < num_lights; ++i) {
-        auto pos = tomlArrayToVec3(config["lights"]["positions"][i].as_array()).value();
-        auto color = tomlArrayToVec3(config["lights"]["colors"][i].as_array()).value();
-        lights.emplace_back(Light { pos, color });
+        auto pos = tomlArrayToVec3(config["lights"]["positions"][i].as_array());
+        auto color = tomlArrayToVec3(config["lights"]["colors"][i].as_array());
+        lights.emplace_back(Light{ pos, color });
     }
 
-    // Create window
-    Window window { "Shading", glm::ivec2(WIDTH, HEIGHT), OpenGLVersion::GL41 };
-
-
-    // read camera settings
-    auto look_at = tomlArrayToVec3(config["camera"]["lookAt"].as_array()).value();
-    auto rotations = tomlArrayToVec3(config["camera"]["rotations"].as_array()).value();
+    // read camera settings from TOML and setup trackball
+    glm::vec3 look_at = tomlArrayToVec3(config["camera"]["lookAt"].as_array());
+    glm::vec3 rotations = tomlArrayToVec3(config["camera"]["rotations"].as_array());
     float fovY = config["camera"]["fovy"].value_or(50.0f);
     float dist = config["camera"]["dist"].value_or(1.0f);
-
-
-
-    Trackball trackball { &window, glm::radians(fovY) };
+    Trackball trackball{ window, glm::radians(fovY) };
     trackball.setCamera(look_at, rotations, dist);
 
-    // read data path
+    // read image path from TOML
+    std::cout << "Loading image... ";
     auto data_path = std::string(RESOURCE_ROOT) + config["data"]["path"].value_or("resources/default.png");
     int image_width, image_height;
     const std::vector<Pixel> pixels = loadPixelsFromImage(data_path.c_str(), image_width, image_height);
+    std::cout << "done." << std::endl;
     std::cout << "Loaded image " << data_path.c_str() << " with dimensions " << image_width << "x" << image_height << std::endl;
+    image_data = { pixels, image_width, image_height };
+
+    const GLubyte* version = glGetString(GL_VERSION);
+    std::cout << "OpenGL Version: " << version << std::endl;
+
+    return trackball;
+}
 
 
-    window.registerKeyCallback([&](int key, int /* scancode */, int action, int /* mods */) {
-        if (key == '\\' && action == GLFW_PRESS) {
-            show_imgui = !show_imgui;
+static float heightFromPixel(Pixel pixel) {
+    return 0.299f * static_cast<float>(pixel.R) / 255.0f
+         + 0.587f * static_cast<float>(pixel.G) / 255.0f
+         + 0.114f * static_cast<float>(pixel.B) / 255.0f;
+}
+
+
+// Program entry point. Everything starts here.
+int main(int argc, char** argv)
+{
+    // Create program window
+    Window window{ "3D Data Visualizer", glm::ivec2(WIDTH, HEIGHT), OpenGLVersion::GL41 };
+
+    // Parse initial scene config TOML
+    Trackball trackball = readInitialConfig(&window);
+
+    std::vector<glm::vec3> dotVertices;
+    for (int z = 0; z < image_data.height; ++z) {
+        for (int x = 0; x < image_data.width; ++x) {
+            const Pixel& pixel = image_data.pixels[z * image_data.width + x];
+            float y = heightFromPixel(pixel) * 5.0f;
+            float xPos = (10.0f * static_cast<float>(x) / static_cast<float>(image_data.width)) - 5.0f;
+            float zPos = (10.0f * static_cast<float>(z) / static_cast<float>(image_data.height)) - 5.0f;
+            dotVertices.emplace_back(glm::vec3(xPos, y, zPos));
         }
+    }
 
-        if (action != GLFW_RELEASE)
-            return;
+    // Dots VAO
+    GLuint dotVAO, dotVBO;
+    glGenVertexArrays(1, &dotVAO);
+    glGenBuffers(1, &dotVBO);
+    glBindVertexArray(dotVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, dotVBO);
 
-        const bool shiftPressed = window.isKeyPressed(GLFW_KEY_LEFT_SHIFT) || window.isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+    // Light VAO
+    GLuint lightVAO, lightVBO;
+    glGenVertexArrays(1, &lightVAO);
+    glGenBuffers(1, &lightVBO);
+    glBindVertexArray(lightVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, lightVBO);
 
-        switch (key) {
-        case GLFW_KEY_0: {
-            debug = !debug;
-            break;
-        }
-        case GLFW_KEY_7: {
-            std::cout << "Number keys from 7 on not used." << std::endl;
-            return;
-        }
-        case GLFW_KEY_M: {
-            interfaceLightPlacement = static_cast<LightPlacementValue>((static_cast<int>(interfaceLightPlacement) + 1) % 3);
-            break;
-        }
-        case GLFW_KEY_L: {
-            if (shiftPressed)
-                lights.push_back(Light { trackball.position(), glm::vec3(1) });
-            else
-                lights[selectedLightIndex].position = trackball.position();
-            return;
-        }
-        case GLFW_KEY_MINUS: {
-            selectPreviousLight();
-            return;
-        }
-        case GLFW_KEY_EQUAL: {
-            if (shiftPressed) // '+' pressed (unless you use a weird keyboard layout).
-                selectNextLight();
-            return;
-        }
-        case GLFW_KEY_N: {
-            resetLights();
-            return;
-        }
-        case GLFW_KEY_T: {
-            if (shiftPressed)
-                shadingData.toonSpecularThreshold += 0.001f;
-            else
-                shadingData.toonSpecularThreshold -= 0.001f;
-            std::cout << "ToonSpecular: " << shadingData.toonSpecularThreshold << std::endl;
-            return;
-        }
-        case GLFW_KEY_D: {
-            if (shiftPressed) {
-                ++shadingData.toonDiscretize;
-            } else {
-                if (--shadingData.toonDiscretize < 1)
-                    shadingData.toonDiscretize = 1;
-            }
-            std::cout << "Toon Discretization levels: " << shadingData.toonDiscretize << std::endl;
-            return;
-        }
-        case GLFW_KEY_R: {
-            if (shiftPressed) {
-                // Decrease diffuse Kd coefficient in the red channel by 0.1
-            } else {
-                // Increase diffuse Kd coefficient in the red channel by 0.1
-            }
-            return;
-        }
-        case GLFW_KEY_G: {
-            // Same for green.
-            return;
-        }
-        case GLFW_KEY_B: {
-            // Same for blue.
-            return;
-        }
-        default:
-            return;
-        };
+    const Shader lightShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/light_vertex.glsl")
+                                              .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/light_frag.glsl")
+                                              .build();
+    const Shader dotShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/dot_vertex.glsl")
+                                            .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/dot_frag.glsl")
+                                            .build();
 
-        switch (interfaceLightPlacement) {
-        case LightPlacementValue::Sphere: {
-            std::cout << "Interaction: LightPlacementValue::Sphere" << std::endl;
-            break;
-        }
-        case LightPlacementValue::Shadow: {
-            std::cout << "Interaction: LightPlacementValue::Shadow" << std::endl;
-            break;
-        }
-        case LightPlacementValue::Specular: {
-            std::cout << "Interaction: LightPlacementValue::Specular" << std::endl;
-            break;
-        }
-        };
-    });
-
-    const Shader lightShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/light_vertex.glsl").addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/light_frag.glsl").build();
-
-    // Create Vertex Buffer Object and Index Buffer Objects.
-    GLuint vbo;
-
-    glGenBuffers(1, &vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    GLuint ibo;
-    // Create index buffer object (IBO)
-    glGenBuffers(1, &ibo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-    // Bind vertex data to shader inputs using their index (location).
-    // These bindings are stored in the Vertex Array Object.
-    GLuint vao;
-    // Create VAO and bind it so subsequent creations of VBO and IBO are bound to this VAO
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-
-    // The position and normal vectors should be retrieved from the specified Vertex Buffer Object.
-    // The stride is the distance in bytes between vertices. We use the offset to point to the normals
-    // instead of the positions.
-    // Tell OpenGL that we will be using vertex attributes 0 and 1.
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-
-    // This is where we would set the attribute pointers, if apple supported it.
-
-    glBindVertexArray(0);
-
-    // Create a texture on the GPU with 3 channels with 8 bits each.
-    GLuint texToon;
-    glGenTextures(1, &texToon);
-    glBindTexture(GL_TEXTURE_2D, texToon);
-
-    // Set behavior for when texture coordinates are outside the [0, 1] range.
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    // Set interpolation for texture sampling (GL_NEAREST for no interpolation).
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    // Enable depth testing.
-    glEnable(GL_DEPTH_TEST);
 
     // Main loop.
     while (!window.shouldClose()) {
+        // Update input and UI
         window.updateInput();
-
-        imgui();
-
+        renderGUI();
+        
         // Clear the framebuffer to black and depth to maximum value (ranges from [-1.0 to +1.0]).
         glViewport(0, 0, window.getWindowSize().x, window.getWindowSize().y);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -466,27 +309,24 @@ int main(int argc, char** argv)
         const glm::mat4 view = trackball.viewMatrix();
         const glm::mat4 projection = trackball.projectionMatrix();
         const glm::mat4 mvp = projection * view * model;
+        
+        // Draw dots
+        if (render_dots) {
+            lightShader.bind();
+            for (const glm::vec3& dot : dotVertices) {
+                const glm::vec4 screenPos = mvp * glm::vec4(dot, 1.0f);
 
-        bool renderedSomething = false;
-        auto render = [&](const Shader &shader) {
-            renderedSomething = true;
+                glPointSize(2.0f);
+                glUniform4fv(lightShader.getUniformLocation("pos"), 1, glm::value_ptr(screenPos));
+                glUniform3fv(lightShader.getUniformLocation("color"), 1, glm::value_ptr(dot_color_1));
+                glBindVertexArray(lightVAO);
+                glDrawArrays(GL_POINTS, 0, 1);
+                glBindVertexArray(0);
 
-            // Set the model/view/projection matrix that is used to transform the vertices in the vertex shader.
-            glUniformMatrix4fv(shader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
-
-            // Bind vertex data.
-            glBindVertexArray(vao);
-
-            // We tell OpenGL what each vertex looks like and how they are mapped to the shader using the names
-            // NOTE: Usually this can be stored in the VAO, since the locations would be the same in all shaders by using the layout(location = ...) qualifier in the shaders, however this does not work on apple devices.
-            glVertexAttribPointer(shader.getAttributeLocation("pos"), 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
-            glVertexAttribPointer(shader.getAttributeLocation("normal"), 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, normal));
-
-            glBindVertexArray(0);
-        };
+            }
+        }
 
         // Draw lights as (square) points.
-        //glDepthMask(GL_FALSE);
         lightShader.bind();
         {
             const glm::vec4 screenPos = mvp * glm::vec4(lights[selectedLightIndex].position, 1.0f);
@@ -495,67 +335,32 @@ int main(int argc, char** argv)
             glPointSize(40.0f);
             glUniform4fv(lightShader.getUniformLocation("pos"), 1, glm::value_ptr(screenPos));
             glUniform3fv(lightShader.getUniformLocation("color"), 1, glm::value_ptr(color));
-            glBindVertexArray(vao);
+            glBindVertexArray(lightVAO);
             glDrawArrays(GL_POINTS, 0, 1);
             glBindVertexArray(0);
         }
         for (const Light& light : lights) {
             const glm::vec4 screenPos = mvp * glm::vec4(light.position, 1.0f);
-            // const glm::vec3 color { 1, 0, 0 };
 
             glPointSize(10.0f);
             glUniform4fv(lightShader.getUniformLocation("pos"), 1, glm::value_ptr(screenPos));
             glUniform3fv(lightShader.getUniformLocation("color"), 1, glm::value_ptr(light.color));
-            glBindVertexArray(vao);
+            glBindVertexArray(lightVAO);
             glDrawArrays(GL_POINTS, 0, 1);
             glBindVertexArray(0);
-
         }
-        //glDepthMask(GL_TRUE);
 
         // Present result to the screen.
         window.swapBuffers();
     }
 
-    // Be a nice citizen and clean up after yourself.
-    glDeleteTextures(1, &texToon);
-    glDeleteBuffers(1, &vbo);
-    glDeleteBuffers(1, &ibo);
-    glDeleteVertexArrays(1, &vao);
+    // Cleanup
+    glDeleteBuffers(1, &lightVBO);
+    glDeleteBuffers(1, &dotVBO);
+    glDeleteVertexArrays(1, &lightVAO);
+    glDeleteVertexArrays(1, &dotVAO);
 
     return 0;
-}
-
-// User interaction - when the user chooses a vertex, you receive its position, normal, its index
-// you can use it to NOW modify all global variables, such as the light position, or change material properties etc.
-static void userInteraction(const glm::vec3& cameraPos, const glm::vec3& selectedPos, const glm::vec3& selectedNormal)
-{
-    switch (interfaceLightPlacement) {
-    case LightPlacementValue::Sphere: {
-        lights[selectedLightIndex].position = userInteractionSphere(selectedPos, cameraPos);
-        break;
-    }
-    case LightPlacementValue::Shadow: {
-        lights[selectedLightIndex].position = userInteractionShadow(
-            selectedPos, selectedNormal, lights[selectedLightIndex].position);
-        break;
-    }
-    case LightPlacementValue::Specular: {
-        lights[selectedLightIndex].position = userInteractionSpecular(
-            selectedPos, selectedNormal, lights[selectedLightIndex].position, cameraPos);
-        break;
-    }
-    }
-}
-
-static size_t getClosestVertexIndex(const Mesh& mesh, const glm::vec3& pos)
-{
-    const auto iter = std::min_element(
-        std::begin(mesh.vertices), std::end(mesh.vertices),
-        [&](const Vertex& lhs, const Vertex& rhs) {
-            return glm::length(lhs.position - pos) < glm::length(rhs.position - pos);
-        });
-    return (size_t) std::distance(std::begin(mesh.vertices), iter);
 }
 
 static std::optional<glm::vec3> getWorldPositionOfPixel(const Trackball& trackball, const glm::vec2& pixel)
@@ -589,26 +394,8 @@ static void printHelp()
     Trackball::printHelp();
     std::cout << std::endl;
     std::cout << "Program Usage:" << std::endl;
-    std::cout << "0 - activate Debug" << std::endl;
-    std::cout << "______________________" << std::endl;
-    std::cout << "1 - Diffuse Lighting on" << std::endl;
-    std::cout << "2 - Phong Specularities" << std::endl;
-    std::cout << "3 - Blinn-Phong Specularities" << std::endl;
-    std::cout << "4 - Toon-Shading" << std::endl;
-    std::cout << "5 - Toon Specularities" << std::endl;
-    std::cout << "6 - X-Toon Shading" << std::endl;
-    std::cout << "______________________" << std::endl;
-    std::cout << "D - increase Toon discretization steps" << std::endl;
-    std::cout << "d - decrease Toon discretization steps" << std::endl;
-    std::cout << "T - increase Toon specular threshold" << std::endl;
-    std::cout << "t - decrease Toon specular threshold" << std::endl;
-    std::cout << "______________________" << std::endl;
-    std::cout << "m - Change Interaction Mode - to influence light source" << std::endl;
-    std::cout << "l - place the light source at the current camera position" << std::endl;
-    std::cout << "L - add an additional light source" << std::endl;
-    std::cout << "+ - choose next light source" << std::endl;
-    std::cout << "- - choose previous light source" << std::endl;
-    std::cout << "N - clear all light sources and reinitialize with one" << std::endl;
-    // std::cout << "s - show selected vertices" << std::endl;
-    std::cout << "SPACE - call your light placement function with the current mouse position" << std::endl;
+    std::cout << "=============================" << std::endl;
+    std::cout << "TODO: Print Message + Keyboard Shortcuts" << std::endl;
+    std::cout << "=============================" << std::endl;
 }
+
