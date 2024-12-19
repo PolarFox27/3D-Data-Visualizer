@@ -259,10 +259,14 @@ int main(int argc, char** argv)
     Trackball trackball = readInitialConfig(&window);
 
     std::vector<glm::vec3> dotVertices;
+    float minHeight = 10.0f, maxHeight = 0.0f;
     for (int z = 0; z < image_data.height; ++z) {
         for (int x = 0; x < image_data.width; ++x) {
             const Pixel& pixel = image_data.pixels[z * image_data.width + x];
             float y = heightFromPixel(pixel) * 5.0f;
+            if (y < minHeight) minHeight = y;
+            else if (y > maxHeight) maxHeight = y;
+            
             float xPos = (10.0f * static_cast<float>(x) / static_cast<float>(image_data.width)) - 5.0f;
             float zPos = (10.0f * static_cast<float>(z) / static_cast<float>(image_data.height)) - 5.0f;
             dotVertices.emplace_back(glm::vec3(xPos, y, zPos));
@@ -312,14 +316,20 @@ int main(int argc, char** argv)
         
         // Draw dots
         if (render_dots) {
-            lightShader.bind();
+            dotShader.bind();
             for (const glm::vec3& dot : dotVertices) {
                 const glm::vec4 screenPos = mvp * glm::vec4(dot, 1.0f);
+                const int mode = static_cast<int>(dot_render_style);
 
                 glPointSize(2.0f);
-                glUniform4fv(lightShader.getUniformLocation("pos"), 1, glm::value_ptr(screenPos));
-                glUniform3fv(lightShader.getUniformLocation("color"), 1, glm::value_ptr(dot_color_1));
-                glBindVertexArray(lightVAO);
+                glUniform4fv(dotShader.getUniformLocation("pos"), 1, glm::value_ptr(screenPos));
+                glUniform3fv(dotShader.getUniformLocation("worldPos"), 1, glm::value_ptr(dot));
+                glUniform3fv(dotShader.getUniformLocation("color1"), 1, glm::value_ptr(dot_color_1));
+                glUniform3fv(dotShader.getUniformLocation("color2"), 1, glm::value_ptr(dot_color_2));
+                glUniform1iv(dotShader.getUniformLocation("mode"), 1, &mode);
+                glUniform1f(dotShader.getUniformLocation("minHeight"), minHeight);
+                glUniform1f(dotShader.getUniformLocation("maxHeight"), maxHeight);
+                glBindVertexArray(dotVAO);
                 glDrawArrays(GL_POINTS, 0, 1);
                 glBindVertexArray(0);
 
