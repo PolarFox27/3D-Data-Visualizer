@@ -1,7 +1,7 @@
 [data]
 path = "resources/small_image.png"
 render_size = 5.0
-render_height = 5
+render_height = 5.0
 
 [lights]
 positions = [[8.0, 5.0, 0.0]]

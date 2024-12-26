@@ -284,10 +284,13 @@ static float heightFromPixel(Pixel pixel) {
          + 0.114f * static_cast<float>(pixel.B) / 255.0f;
 }
 
-static int loadDotVertices(ImageData data, bool lines, GLuint* dotVAO, GLuint* dotVBO, float* maxHeight, float* minHeight) {
-    std::vector<glm::vec3> dotVertices;
+static int loadDotVertices(ImageData data, bool lines, bool wireframe, GLuint* dotVAO, GLuint* dotVBO, float* maxHeight, float* minHeight) {
+    std::vector<glm::vec3> dotVertices, resultVertices;
+    dotVertices.reserve(data.width * data.height);
     *minHeight = data.render_size;
     *maxHeight = 0.0f;
+
+    // Find dot vertices
     for (int z = 0; z < data.height; ++z) {
         for (int x = 0; x < data.width; ++x) {
             const Pixel& pixel = data.pixels[z * data.width + x];
@@ -298,10 +301,37 @@ static int loadDotVertices(ImageData data, bool lines, GLuint* dotVAO, GLuint* d
             float xPos = data.render_size * (static_cast<float>(x) / static_cast<float>(data.width) - 0.5f);
             float zPos = data.render_size * (static_cast<float>(z) / static_cast<float>(data.height) - 0.5f);
             dotVertices.emplace_back(glm::vec3(xPos, y, zPos));
+                
+            // Add another vertex to draw a vertical line
             if (lines) {
                 dotVertices.emplace_back(glm::vec3(xPos, 0.0f, zPos));
             }
         }
+    }
+
+    // Find wireframe vertices
+    if (wireframe) {
+        resultVertices.reserve(data.width*data.height*4);
+        for (int z = 0; z < data.height; ++z) {
+            for (int x = 0; x < data.width; ++x) {
+                glm::vec3 current = dotVertices[z * data.height + x];
+
+                if (z + 1 < data.height) {
+                    glm::vec3 neighbor = dotVertices[(z+1) * data.height + x];
+                    resultVertices.push_back(current);
+                    resultVertices.push_back(neighbor);
+                }
+
+                if (x + 1 < data.width) {
+                    glm::vec3 neighbor = dotVertices[z * data.height + x + 1];
+                    resultVertices.push_back(current);
+                    resultVertices.push_back(neighbor);
+                }
+            }
+        }
+    }
+    else {
+        resultVertices = dotVertices;
     }
 
     // Clean previous VAO and VBO
@@ -315,7 +345,7 @@ static int loadDotVertices(ImageData data, bool lines, GLuint* dotVAO, GLuint* d
 
     // Upload all the dot positions to the VBO
     glBindBuffer(GL_ARRAY_BUFFER, *dotVBO);
-    glBufferData(GL_ARRAY_BUFFER, dotVertices.size() * sizeof(glm::vec3), dotVertices.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, resultVertices.size() * sizeof(glm::vec3), resultVertices.data(), GL_STATIC_DRAW);
 
     // Define the vertex attribute for position
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
@@ -324,7 +354,7 @@ static int loadDotVertices(ImageData data, bool lines, GLuint* dotVAO, GLuint* d
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-    return dotVertices.size();
+    return resultVertices.size();
 }
 
 
@@ -337,11 +367,12 @@ int main(int argc, char** argv)
     // Parse initial scene config TOML
     Trackball trackball = readInitialConfig(&window, image_data, lights);
 
-    // Create dot cloud + lines vertex
-    GLuint dotVAO, dotVBO, lineVAO, lineVBO;
+    // Create dot cloud + lines vertices + wireframe vertices
+    GLuint dotVAO, dotVBO, lineVAO, lineVBO, wireframeVAO, wireframeVBO;
     float minHeight, maxHeight;
-    int dotAmount = loadDotVertices(image_data, false, &dotVAO, &dotVBO, &maxHeight, &minHeight);
-    loadDotVertices(image_data, true, &lineVAO, &lineVBO, &maxHeight, &minHeight);
+    int dotAmount = loadDotVertices(image_data, false, false, &dotVAO, &dotVBO, &maxHeight, &minHeight);
+    loadDotVertices(image_data, true, false, &lineVAO, &lineVBO, &maxHeight, &minHeight);
+    int wireframeDotAmount = loadDotVertices(image_data, false, true, &wireframeVAO, &wireframeVBO, &maxHeight, &minHeight);
 
     // Light VAO and VBO
     GLuint lightVAO, lightVBO;
@@ -410,6 +441,12 @@ int main(int argc, char** argv)
             if (render_lines) {
                 glBindVertexArray(lineVAO);
                 glDrawArrays(GL_LINES, 0, dotAmount*2);
+            }
+
+            // Render wireframe
+            if (render_wireframe) {
+                glBindVertexArray(wireframeVAO);
+                glDrawArrays(GL_LINES, 0, wireframeDotAmount);
             }
             glBindVertexArray(0);
         }
