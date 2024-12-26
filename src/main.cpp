@@ -284,6 +284,49 @@ static float heightFromPixel(Pixel pixel) {
          + 0.114f * static_cast<float>(pixel.B) / 255.0f;
 }
 
+static int loadDotVertices(ImageData data, bool lines, GLuint* dotVAO, GLuint* dotVBO, float* maxHeight, float* minHeight) {
+    std::vector<glm::vec3> dotVertices;
+    *minHeight = data.render_size;
+    *maxHeight = 0.0f;
+    for (int z = 0; z < data.height; ++z) {
+        for (int x = 0; x < data.width; ++x) {
+            const Pixel& pixel = data.pixels[z * data.width + x];
+            float y = heightFromPixel(pixel) * data.render_height;
+            if (y < *minHeight) *minHeight = y;
+            else if (y > *maxHeight) *maxHeight = y;
+
+            float xPos = data.render_size * (static_cast<float>(x) / static_cast<float>(data.width) - 0.5f);
+            float zPos = data.render_size * (static_cast<float>(z) / static_cast<float>(data.height) - 0.5f);
+            dotVertices.emplace_back(glm::vec3(xPos, y, zPos));
+            if (lines) {
+                dotVertices.emplace_back(glm::vec3(xPos, 0.0f, zPos));
+            }
+        }
+    }
+
+    // Clean previous VAO and VBO
+    glDeleteVertexArrays(1, dotVAO);
+    glDeleteBuffers(1, dotVBO);
+    
+    // Generate new VAO and VBO
+    glGenVertexArrays(1, dotVAO);
+    glGenBuffers(1, dotVBO);
+    glBindVertexArray(*dotVAO);
+
+    // Upload all the dot positions to the VBO
+    glBindBuffer(GL_ARRAY_BUFFER, *dotVBO);
+    glBufferData(GL_ARRAY_BUFFER, dotVertices.size() * sizeof(glm::vec3), dotVertices.data(), GL_STATIC_DRAW);
+
+    // Define the vertex attribute for position
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    return dotVertices.size();
+}
+
 
 // Program entry point. Everything starts here.
 int main(int argc, char** argv)
@@ -294,38 +337,11 @@ int main(int argc, char** argv)
     // Parse initial scene config TOML
     Trackball trackball = readInitialConfig(&window, image_data, lights);
 
-    std::vector<glm::vec3> dotVertices;
-    float minHeight = image_data.render_size, maxHeight = 0.0f;
-    for (int z = 0; z < image_data.height; ++z) {
-        for (int x = 0; x < image_data.width; ++x) {
-            const Pixel& pixel = image_data.pixels[z * image_data.width + x];
-            float y = heightFromPixel(pixel) * image_data.render_height;
-            if (y < minHeight) minHeight = y;
-            else if (y > maxHeight) maxHeight = y;
-            
-            float xPos = image_data.render_size * (static_cast<float>(x) / static_cast<float>(image_data.width) - 0.5f);
-            float zPos = image_data.render_size * (static_cast<float>(z) / static_cast<float>(image_data.height) - 0.5f);
-            dotVertices.emplace_back(glm::vec3(xPos, y, zPos));
-        }
-    }
-
-    // Dots VAO and VBO
-    GLuint dotVAO, dotVBO;
-    glGenVertexArrays(1, &dotVAO);
-    glGenBuffers(1, &dotVBO);
-
-    glBindVertexArray(dotVAO);
-
-    // Upload all the dot positions to the VBO
-    glBindBuffer(GL_ARRAY_BUFFER, dotVBO);
-    glBufferData(GL_ARRAY_BUFFER, dotVertices.size() * sizeof(glm::vec3), dotVertices.data(), GL_STATIC_DRAW);
-
-    // Define the vertex attribute for position
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+    // Create dot cloud + lines vertex
+    GLuint dotVAO, dotVBO, lineVAO, lineVBO;
+    float minHeight, maxHeight;
+    int dotAmount = loadDotVertices(image_data, false, &dotVAO, &dotVBO, &maxHeight, &minHeight);
+    loadDotVertices(image_data, true, &lineVAO, &lineVBO, &maxHeight, &minHeight);
 
     // Light VAO and VBO
     GLuint lightVAO, lightVBO;
@@ -371,8 +387,9 @@ int main(int argc, char** argv)
         
         // Draw dots
         if (render_dots) {
-            dotShader.bind();
 
+            //Shader and variable setup
+            dotShader.bind();
             const int mode = static_cast<int>(dot_render_mode);
             glUniform3fv(dotShader.getUniformLocation("color1"), 1, glm::value_ptr(dot_color_1));
             glUniform3fv(dotShader.getUniformLocation("color2"), 1, glm::value_ptr(dot_color_2));
@@ -384,9 +401,16 @@ int main(int argc, char** argv)
             glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
             glUniform3fv(dotShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(cameraPos));
             
+            // Render dots
             glPointSize(dot_size);
             glBindVertexArray(dotVAO);
-            glDrawArrays(GL_POINTS, 0, dotVertices.size());
+            glDrawArrays(GL_POINTS, 0, dotAmount);
+            
+            // Render lines
+            if (render_lines) {
+                glBindVertexArray(lineVAO);
+                glDrawArrays(GL_LINES, 0, dotAmount*2);
+            }
             glBindVertexArray(0);
         }
 

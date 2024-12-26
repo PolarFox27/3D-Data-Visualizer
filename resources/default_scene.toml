@@ -1,6 +1,6 @@
 [data]
-path = "resources/valley_and_peak.png"
-render_size = 20.0
+path = "resources/small_image.png"
+render_size = 5.0
 render_height = 5
 
 [lights]
