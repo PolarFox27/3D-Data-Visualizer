@@ -29,39 +29,23 @@ DISABLE_WARNINGS_POP()
 #include <vector>
 #include <array>
 
-// Configuration
-const int WIDTH = 1200;
-const int HEIGHT = 800;
-bool show_imgui = true;
+//============================ENUMS AND STRUCTS===============================
 
-// Dot Style 
-enum class DotRenderingStyle {
+// Dot Rendering Mode Enum
+enum class DotRenderingMode {
     FixedColor = 0,
     HeightGradient = 1,
     CameraDistanceGradient = 2
 };
 
-bool render_quad = false;
-bool render_dots = false;
-bool render_wireframe = false;
-DotRenderingStyle dot_render_style = DotRenderingStyle::FixedColor;
-glm::vec3 dot_color_1 {1.0f, 0.0f, 0.0f};
-glm::vec3 dot_color_2 { 0.0f, 1.0f, 0.0f };
-
-// Lights
-struct Light {
-    glm::vec3 position;
-    glm::vec3 color;
-};
-std::vector<Light> lights {};
-size_t selectedLightIndex = 0;
-
 // Pixels and Image Data
 struct Pixel {
-    unsigned char R; 
-    unsigned char G; 
+    unsigned char R;
+    unsigned char G;
     unsigned char B;
 };
+
+// Image Data
 struct ImageData {
     std::vector<Pixel> pixels;  // The image pixel data
     int width;                  // The image width (in pixels)
@@ -69,25 +53,71 @@ struct ImageData {
     float render_size;          // The dot cloud render width
     float render_height;        // The dot cloud render height
 };
+
+// Light
+struct Light {
+    glm::vec3 position;
+    glm::vec3 color;
+};
+
+//===========================================================================
+
+
+
+//==============================Configuration================================
+
+const int WIDTH = 1200;
+const int HEIGHT = 800;
 ImageData image_data;
 
 
-static std::optional<glm::vec3> getWorldPositionOfPixel(const Trackball&, const glm::vec2& pixel);
-static void printHelp();
+bool show_imgui = true;
 
-void resetLights()
+// Quad
+bool render_quad = false;
+
+// Dots
+bool render_dots = false;
+bool render_lines = false;
+bool render_wireframe = false;
+float dot_size = 2.0f;
+DotRenderingMode dot_render_mode = DotRenderingMode::FixedColor;
+glm::vec3 dot_color_1 {1.0f, 0.0f, 0.0f};
+glm::vec3 dot_color_2 { 0.0f, 1.0f, 0.0f };
+
+// Lights
+std::vector<Light> lights {};
+size_t selectedLightIndex = 0;
+
+//===========================================================================
+
+
+
+//============================UI Helper Functions============================
+
+static void printHelp()
+{
+    Trackball::printHelp();
+    std::cout << std::endl;
+    std::cout << "Program Usage:" << std::endl;
+    std::cout << "=============================" << std::endl;
+    std::cout << "TODO: Print Message + Keyboard Shortcuts" << std::endl;
+    std::cout << "=============================" << std::endl;
+}
+
+static void resetLights()
 {
     lights.clear();
     lights.push_back(Light { glm::vec3(0, 0, 3), glm::vec3(1) });
     selectedLightIndex = 0;
 }
 
-void selectNextLight()
+static void selectNextLight()
 {
     selectedLightIndex = (selectedLightIndex + 1) % lights.size();
 }
 
-void selectPreviousLight()
+static void selectPreviousLight()
 {
     if (selectedLightIndex == 0)
         selectedLightIndex = lights.size() - 1;
@@ -113,44 +143,48 @@ static void renderGUI()
 
     // Dots Rendering
     ImGui::Text("Dots");
-    ImGui::Checkbox("Render Dots", &render_dots);
+    ImGui::Checkbox("Show Dots", &render_dots);
+    ImGui::InputFloat("Dot Size", &dot_size);
     ImGui::ColorEdit3("Color 1", &dot_color_1[0]);
     ImGui::ColorEdit3("Color 2", &dot_color_2[0]);
     // Dropdown for dot render style
-    std::array dot_render_style_names{ "Fixed Color", "Gradient based on Height", "Gradient based on distance to Camera" };
-    int current_dot_render_style = static_cast<int>(dot_render_style);
-    ImGui::Combo("Dot Rendering Style", &current_dot_render_style, dot_render_style_names.data(), (int)dot_render_style_names.size());
-    dot_render_style = static_cast<DotRenderingStyle>(current_dot_render_style);
-    ImGui::Checkbox("Render Wireframe", &render_wireframe);
+    std::array dot_render_mode_names{ "Fixed Color", "Gradient based on Height", "Gradient based on distance to Camera" };
+    int current_dot_render_mode = static_cast<int>(dot_render_mode);
+    ImGui::Combo("Render Mode", &current_dot_render_mode, dot_render_mode_names.data(), (int)dot_render_mode_names.size());
+    dot_render_mode = static_cast<DotRenderingMode>(current_dot_render_mode);
+    ImGui::Checkbox("Show Lines", &render_lines);
+    ImGui::Checkbox("Show Wireframe", &render_wireframe);
     ImGui::Separator();
 
-
+    //Lights Rendering
     ImGui::Text("Lights");
-    // Display lights in scene
     std::vector<std::string> itemStrings = {};
     for (size_t i = 0; i < lights.size(); i++) {
         auto string = "Light " + std::to_string(i);
         itemStrings.push_back(string);
     }
-
     std::vector<const char*> itemCStrings = {};
     for (const auto& string : itemStrings) {
         itemCStrings.push_back(string.c_str());
     }
-
     int tempSelectedItem = static_cast<int>(selectedLightIndex);
     if (ImGui::ListBox("Lights", &tempSelectedItem, itemCStrings.data(), (int) itemCStrings.size(), 4)) {
         selectedLightIndex = static_cast<size_t>(tempSelectedItem);
     }
-
-    // Button for clearing lights
     if (ImGui::Button("Reset Lights")) {
         resetLights();
     }
 
+    // End GUI
     ImGui::End();
     ImGui::Render();
 }
+
+//===========================================================================
+
+
+
+//=========================Config Loading Functions==========================
 
 static glm::vec3 tomlArrayToVec3(const toml::array* array)
 {
@@ -187,10 +221,7 @@ static std::vector<Pixel> loadPixelsFromImage(const char* filePath, int& width, 
     std::vector<Pixel> pixels;
     pixels.reserve(width * height);
     for (int i = 0; i < width * height; ++i) {
-        Pixel pixel;
-        pixel.R = data[i * 3 + 0]; // R
-        pixel.G = data[i * 3 + 1]; // G
-        pixel.B = data[i * 3 + 2]; // B
+        Pixel pixel{ data[i * 3 + 0], data[i * 3 + 1], data[i * 3 + 2] }; // RGB values
         pixels.push_back(pixel);
     }
 
@@ -199,7 +230,10 @@ static std::vector<Pixel> loadPixelsFromImage(const char* filePath, int& width, 
     return pixels;
 }
 
-static Trackball readInitialConfig(Window* window) {
+static Trackball readInitialConfig(Window* window, ImageData& image, std::vector<Light>& lights_list) {
+    const GLubyte* version = glGetString(GL_VERSION);
+    std::cout << "OpenGL Version: " << version << std::endl;
+
     // Parse initial scene config TOML
     std::cout << "Loading TOML config... ";
     toml::table config;
@@ -212,7 +246,7 @@ static Trackball readInitialConfig(Window* window) {
     }
 
     // read lights from TOML
-    lights = std::vector<Light>{};
+    lights_list = std::vector<Light>{};
     size_t num_lights = config["lights"]["positions"].as_array()->size();
     for (size_t i = 0; i < num_lights; ++i) {
         auto pos = tomlArrayToVec3(config["lights"]["positions"][i].as_array());
@@ -237,14 +271,12 @@ static Trackball readInitialConfig(Window* window) {
     const std::vector<Pixel> pixels = loadPixelsFromImage(data_path.c_str(), image_width, image_height);
     std::cout << "done." << std::endl;
     std::cout << "Loaded image " << data_path.c_str() << " with dimensions " << image_width << "x" << image_height << std::endl;
-    image_data = { pixels, image_width, image_height, render_size, render_height };
-
-    const GLubyte* version = glGetString(GL_VERSION);
-    std::cout << "OpenGL Version: " << version << std::endl;
+    image = { pixels, image_width, image_height, render_size, render_height };
 
     return trackball;
 }
 
+//===========================================================================
 
 static float heightFromPixel(Pixel pixel) {
     return 0.299f * static_cast<float>(pixel.R) / 255.0f
@@ -260,7 +292,7 @@ int main(int argc, char** argv)
     Window window{ "3D Data Visualizer", glm::ivec2(WIDTH, HEIGHT), OpenGLVersion::GL41 };
 
     // Parse initial scene config TOML
-    Trackball trackball = readInitialConfig(&window);
+    Trackball trackball = readInitialConfig(&window, image_data, lights);
 
     std::vector<glm::vec3> dotVertices;
     float minHeight = image_data.render_size, maxHeight = 0.0f;
@@ -321,10 +353,18 @@ int main(int argc, char** argv)
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Set model/view/projection matrix.
+        // Compute distance to camera
         const glm::vec3 cameraPos = trackball.position();
-        const glm::mat4 model { 1.0f };
+        const float maxSize = std::sqrtf(image_data.render_height*image_data.render_height + 
+                                        image_data.render_size*image_data.render_size/2.0f);
+        float minDistanceToCamera = glm::length(cameraPos) - maxSize;
+        float maxDistanceToCamera = glm::length(cameraPos) + maxSize;
+        if (minDistanceToCamera < 0.0f) {
+            minDistanceToCamera = 0.0f;
+        }
 
+        // Set model/view/projection matrix.
+        const glm::mat4 model { 1.0f };
         const glm::mat4 view = trackball.viewMatrix();
         const glm::mat4 projection = trackball.projectionMatrix();
         const glm::mat4 mvp = projection * view * model;
@@ -333,15 +373,18 @@ int main(int argc, char** argv)
         if (render_dots) {
             dotShader.bind();
 
-            const int mode = static_cast<int>(dot_render_style);
+            const int mode = static_cast<int>(dot_render_mode);
             glUniform3fv(dotShader.getUniformLocation("color1"), 1, glm::value_ptr(dot_color_1));
             glUniform3fv(dotShader.getUniformLocation("color2"), 1, glm::value_ptr(dot_color_2));
             glUniform1iv(dotShader.getUniformLocation("mode"), 1, &mode);
             glUniform1f(dotShader.getUniformLocation("minHeight"), minHeight);
             glUniform1f(dotShader.getUniformLocation("maxHeight"), maxHeight);
+            glUniform1f(dotShader.getUniformLocation("minDistanceToCamera"), minDistanceToCamera);
+            glUniform1f(dotShader.getUniformLocation("maxDistanceToCamera"), maxDistanceToCamera);
             glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
+            glUniform3fv(dotShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(cameraPos));
             
-            glPointSize(2.0f);
+            glPointSize(dot_size);
             glBindVertexArray(dotVAO);
             glDrawArrays(GL_POINTS, 0, dotVertices.size());
             glBindVertexArray(0);
@@ -408,15 +451,5 @@ static std::optional<glm::vec3> getWorldPositionOfPixel(const Trackball& trackba
 
     const glm::vec4 viewport { 0, 0, WIDTH, HEIGHT };
     return glm::unProject(win, view, projection, viewport);
-}
-
-static void printHelp()
-{
-    Trackball::printHelp();
-    std::cout << std::endl;
-    std::cout << "Program Usage:" << std::endl;
-    std::cout << "=============================" << std::endl;
-    std::cout << "TODO: Print Message + Keyboard Shortcuts" << std::endl;
-    std::cout << "=============================" << std::endl;
 }
 
