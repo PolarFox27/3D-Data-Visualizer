@@ -1,5 +1,7 @@
 [data]
-path = "resources/default.png"
+path = "resources/valley_and_peak.png"
+render_size = 20.0
+render_height = 5
 
 [lights]
 positions = [[8.0, 5.0, 0.0]]

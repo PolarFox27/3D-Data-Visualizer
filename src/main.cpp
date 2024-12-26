@@ -63,9 +63,11 @@ struct Pixel {
     unsigned char B;
 };
 struct ImageData {
-    std::vector<Pixel> pixels;
-    int width;
-    int height;
+    std::vector<Pixel> pixels;  // The image pixel data
+    int width;                  // The image width (in pixels)
+    int height;                 // The image height (in pixels)
+    float render_size;          // The dot cloud render width
+    float render_height;        // The dot cloud render height
 };
 ImageData image_data;
 
@@ -228,12 +230,14 @@ static Trackball readInitialConfig(Window* window) {
 
     // read image path from TOML
     std::cout << "Loading image... ";
+    float render_size = config["data"]["render_size"].value_or(10.0f);
+    float render_height = config["data"]["render_height"].value_or(5.0f);
     auto data_path = std::string(RESOURCE_ROOT) + config["data"]["path"].value_or("resources/default.png");
     int image_width, image_height;
     const std::vector<Pixel> pixels = loadPixelsFromImage(data_path.c_str(), image_width, image_height);
     std::cout << "done." << std::endl;
     std::cout << "Loaded image " << data_path.c_str() << " with dimensions " << image_width << "x" << image_height << std::endl;
-    image_data = { pixels, image_width, image_height };
+    image_data = { pixels, image_width, image_height, render_size, render_height };
 
     const GLubyte* version = glGetString(GL_VERSION);
     std::cout << "OpenGL Version: " << version << std::endl;
@@ -259,28 +263,39 @@ int main(int argc, char** argv)
     Trackball trackball = readInitialConfig(&window);
 
     std::vector<glm::vec3> dotVertices;
-    float minHeight = 10.0f, maxHeight = 0.0f;
+    float minHeight = image_data.render_size, maxHeight = 0.0f;
     for (int z = 0; z < image_data.height; ++z) {
         for (int x = 0; x < image_data.width; ++x) {
             const Pixel& pixel = image_data.pixels[z * image_data.width + x];
-            float y = heightFromPixel(pixel) * 5.0f;
+            float y = heightFromPixel(pixel) * image_data.render_height;
             if (y < minHeight) minHeight = y;
             else if (y > maxHeight) maxHeight = y;
             
-            float xPos = (10.0f * static_cast<float>(x) / static_cast<float>(image_data.width)) - 5.0f;
-            float zPos = (10.0f * static_cast<float>(z) / static_cast<float>(image_data.height)) - 5.0f;
+            float xPos = image_data.render_size * (static_cast<float>(x) / static_cast<float>(image_data.width) - 0.5f);
+            float zPos = image_data.render_size * (static_cast<float>(z) / static_cast<float>(image_data.height) - 0.5f);
             dotVertices.emplace_back(glm::vec3(xPos, y, zPos));
         }
     }
 
-    // Dots VAO
+    // Dots VAO and VBO
     GLuint dotVAO, dotVBO;
     glGenVertexArrays(1, &dotVAO);
     glGenBuffers(1, &dotVBO);
-    glBindVertexArray(dotVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, dotVBO);
 
-    // Light VAO
+    glBindVertexArray(dotVAO);
+
+    // Upload all the dot positions to the VBO
+    glBindBuffer(GL_ARRAY_BUFFER, dotVBO);
+    glBufferData(GL_ARRAY_BUFFER, dotVertices.size() * sizeof(glm::vec3), dotVertices.data(), GL_STATIC_DRAW);
+
+    // Define the vertex attribute for position
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    // Light VAO and VBO
     GLuint lightVAO, lightVBO;
     glGenVertexArrays(1, &lightVAO);
     glGenBuffers(1, &lightVBO);
@@ -317,23 +332,19 @@ int main(int argc, char** argv)
         // Draw dots
         if (render_dots) {
             dotShader.bind();
-            for (const glm::vec3& dot : dotVertices) {
-                const glm::vec4 screenPos = mvp * glm::vec4(dot, 1.0f);
-                const int mode = static_cast<int>(dot_render_style);
 
-                glPointSize(2.0f);
-                glUniform4fv(dotShader.getUniformLocation("pos"), 1, glm::value_ptr(screenPos));
-                glUniform3fv(dotShader.getUniformLocation("worldPos"), 1, glm::value_ptr(dot));
-                glUniform3fv(dotShader.getUniformLocation("color1"), 1, glm::value_ptr(dot_color_1));
-                glUniform3fv(dotShader.getUniformLocation("color2"), 1, glm::value_ptr(dot_color_2));
-                glUniform1iv(dotShader.getUniformLocation("mode"), 1, &mode);
-                glUniform1f(dotShader.getUniformLocation("minHeight"), minHeight);
-                glUniform1f(dotShader.getUniformLocation("maxHeight"), maxHeight);
-                glBindVertexArray(dotVAO);
-                glDrawArrays(GL_POINTS, 0, 1);
-                glBindVertexArray(0);
-
-            }
+            const int mode = static_cast<int>(dot_render_style);
+            glUniform3fv(dotShader.getUniformLocation("color1"), 1, glm::value_ptr(dot_color_1));
+            glUniform3fv(dotShader.getUniformLocation("color2"), 1, glm::value_ptr(dot_color_2));
+            glUniform1iv(dotShader.getUniformLocation("mode"), 1, &mode);
+            glUniform1f(dotShader.getUniformLocation("minHeight"), minHeight);
+            glUniform1f(dotShader.getUniformLocation("maxHeight"), maxHeight);
+            glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
+            
+            glPointSize(2.0f);
+            glBindVertexArray(dotVAO);
+            glDrawArrays(GL_POINTS, 0, dotVertices.size());
+            glBindVertexArray(0);
         }
 
         // Draw lights as (square) points.
@@ -342,7 +353,7 @@ int main(int argc, char** argv)
             const glm::vec4 screenPos = mvp * glm::vec4(lights[selectedLightIndex].position, 1.0f);
             const glm::vec3 color { 1, 1, 0 };
 
-            glPointSize(40.0f);
+            glPointSize(15.0f);
             glUniform4fv(lightShader.getUniformLocation("pos"), 1, glm::value_ptr(screenPos));
             glUniform3fv(lightShader.getUniformLocation("color"), 1, glm::value_ptr(color));
             glBindVertexArray(lightVAO);
