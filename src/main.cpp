@@ -38,6 +38,12 @@ enum class DotRenderingMode {
     CameraDistanceGradient = 2
 };
 
+// Triangle Rendering Mode Enum
+enum class TriangleRenderingMode {
+    FixedColor = 0,
+    DiffuseLighting = 1
+};
+
 // Pixels and Image Data
 struct Pixel {
     unsigned char R;
@@ -72,6 +78,8 @@ ImageData image_data;
 
 
 bool show_imgui = true;
+glm::vec3 color_1{ 1.0f, 0.0f, 0.0f };
+glm::vec3 color_2{ 0.0f, 1.0f, 0.0f };
 
 // Quad
 bool render_quad = false;
@@ -82,8 +90,10 @@ bool render_lines = false;
 bool render_wireframe = false;
 float dot_size = 2.0f;
 DotRenderingMode dot_render_mode = DotRenderingMode::FixedColor;
-glm::vec3 dot_color_1 {1.0f, 0.0f, 0.0f};
-glm::vec3 dot_color_2 { 0.0f, 1.0f, 0.0f };
+
+// Triangles
+bool render_triangles = false;
+TriangleRenderingMode triangle_render_mode = TriangleRenderingMode::FixedColor;
 
 // Lights
 std::vector<Light> lights {};
@@ -137,16 +147,16 @@ static void renderGUI()
     ImGui::Separator();
     
     // Quads Rendering
-    ImGui::Text("Simple Quad");
+    ImGui::Text("Base Parameters");
     ImGui::Checkbox("Render Flat Image", &render_quad);
+    ImGui::ColorEdit3("Color 1", &color_1[0]);
+    ImGui::ColorEdit3("Color 2", &color_2[0]);
     ImGui::Separator();
 
     // Dots Rendering
     ImGui::Text("Dots");
     ImGui::Checkbox("Show Dots", &render_dots);
     ImGui::InputFloat("Dot Size", &dot_size);
-    ImGui::ColorEdit3("Color 1", &dot_color_1[0]);
-    ImGui::ColorEdit3("Color 2", &dot_color_2[0]);
     // Dropdown for dot render style
     std::array dot_render_mode_names{ "Fixed Color", "Gradient based on Height", "Gradient based on distance to Camera" };
     int current_dot_render_mode = static_cast<int>(dot_render_mode);
@@ -154,6 +164,17 @@ static void renderGUI()
     dot_render_mode = static_cast<DotRenderingMode>(current_dot_render_mode);
     ImGui::Checkbox("Show Lines", &render_lines);
     ImGui::Checkbox("Show Wireframe", &render_wireframe);
+    ImGui::Separator();
+
+
+    // Triangles Rendering
+    ImGui::Text("Triangles");
+    ImGui::Checkbox("Show Triangles", &render_triangles);
+    // Dropdown for triangle render style
+    std::array triangle_render_mode_names{ "Fixed Color", "Diffuse Lighting" };
+    int current_triangle_render_mode = static_cast<int>(triangle_render_mode);
+    ImGui::Combo("Render Mode", &current_triangle_render_mode, triangle_render_mode_names.data(), (int)triangle_render_mode_names.size());
+    triangle_render_mode = static_cast<TriangleRenderingMode>(current_triangle_render_mode);
     ImGui::Separator();
 
     //Lights Rendering
@@ -284,68 +305,27 @@ static float heightFromPixel(Pixel pixel) {
          + 0.114f * static_cast<float>(pixel.B) / 255.0f;
 }
 
-static int loadDotVertices(ImageData data, bool lines, bool wireframe, GLuint* dotVAO, GLuint* dotVBO, float* maxHeight, float* minHeight) {
-    std::vector<glm::vec3> dotVertices, resultVertices;
-    dotVertices.reserve(data.width * data.height);
-    *minHeight = data.render_size;
-    *maxHeight = 0.0f;
+static glm::vec3 getVertexFromPixel(ImageData data, int x, int z) {
+    const Pixel pixel = data.pixels[z * data.width + x];
+    float y = heightFromPixel(pixel) * data.render_height;
+    float xPos = data.render_size * (static_cast<float>(x) / static_cast<float>(data.width) - 0.5f);
+    float zPos = data.render_size * (static_cast<float>(z) / static_cast<float>(data.height) - 0.5f);
+    return glm::vec3(xPos, y, zPos);
+}
 
-    // Find dot vertices
-    for (int z = 0; z < data.height; ++z) {
-        for (int x = 0; x < data.width; ++x) {
-            const Pixel& pixel = data.pixels[z * data.width + x];
-            float y = heightFromPixel(pixel) * data.render_height;
-            if (y < *minHeight) *minHeight = y;
-            else if (y > *maxHeight) *maxHeight = y;
-
-            float xPos = data.render_size * (static_cast<float>(x) / static_cast<float>(data.width) - 0.5f);
-            float zPos = data.render_size * (static_cast<float>(z) / static_cast<float>(data.height) - 0.5f);
-            dotVertices.emplace_back(glm::vec3(xPos, y, zPos));
-                
-            // Add another vertex to draw a vertical line
-            if (lines) {
-                dotVertices.emplace_back(glm::vec3(xPos, 0.0f, zPos));
-            }
-        }
-    }
-
-    // Find wireframe vertices
-    if (wireframe) {
-        resultVertices.reserve(data.width*data.height*4);
-        for (int z = 0; z < data.height; ++z) {
-            for (int x = 0; x < data.width; ++x) {
-                glm::vec3 current = dotVertices[z * data.height + x];
-
-                if (z + 1 < data.height) {
-                    glm::vec3 neighbor = dotVertices[(z+1) * data.height + x];
-                    resultVertices.push_back(current);
-                    resultVertices.push_back(neighbor);
-                }
-
-                if (x + 1 < data.width) {
-                    glm::vec3 neighbor = dotVertices[z * data.height + x + 1];
-                    resultVertices.push_back(current);
-                    resultVertices.push_back(neighbor);
-                }
-            }
-        }
-    }
-    else {
-        resultVertices = dotVertices;
-    }
-
+static void clearAndLoadNewVertices(std::vector<glm::vec3> vertices, GLuint* VAO, GLuint* VBO) {
     // Clean previous VAO and VBO
-    glDeleteVertexArrays(1, dotVAO);
-    glDeleteBuffers(1, dotVBO);
-    
+    glDeleteVertexArrays(1, VAO);
+    glDeleteBuffers(1, VBO);
+
     // Generate new VAO and VBO
-    glGenVertexArrays(1, dotVAO);
-    glGenBuffers(1, dotVBO);
-    glBindVertexArray(*dotVAO);
+    glGenVertexArrays(1, VAO);
+    glGenBuffers(1, VBO);
+    glBindVertexArray(*VAO);
 
     // Upload all the dot positions to the VBO
-    glBindBuffer(GL_ARRAY_BUFFER, *dotVBO);
-    glBufferData(GL_ARRAY_BUFFER, resultVertices.size() * sizeof(glm::vec3), resultVertices.data(), GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, *VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), vertices.data(), GL_STATIC_DRAW);
 
     // Define the vertex attribute for position
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
@@ -353,8 +333,55 @@ static int loadDotVertices(ImageData data, bool lines, bool wireframe, GLuint* d
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+}
 
-    return resultVertices.size();
+static int loadDotVertices(ImageData data, bool lines, GLuint* dotVAO, GLuint* dotVBO, float* maxHeight, float* minHeight) {
+    std::vector<glm::vec3> vertices;
+    vertices.reserve(data.width * data.height);
+    *minHeight = data.render_size;
+    *maxHeight = 0.0f;
+
+    // Find dot vertices
+    for (int z = 0; z < data.height; ++z) {
+        for (int x = 0; x < data.width; ++x) {
+            const glm::vec3 vertex = getVertexFromPixel(data, x, z);
+            if (vertex.y < *minHeight) *minHeight = vertex.y;
+            else if (vertex.y > *maxHeight) *maxHeight = vertex.y;
+            vertices.emplace_back(vertex);
+                
+            // Add another vertex to draw a vertical line
+            if (lines) {
+                vertices.emplace_back(glm::vec3(vertex.x, 0.0f, vertex.z));
+            }
+        }
+    }
+    clearAndLoadNewVertices(vertices, dotVAO, dotVBO);
+    return vertices.size();
+}
+
+static int loadWireframeVertices(ImageData data, GLuint* wireframeVAO, GLuint* wireframeVBO) {
+    std::vector<glm::vec3> vertices;
+    vertices.reserve(data.width * data.height);
+
+    for (int z = 0; z < data.height; ++z) {
+        for (int x = 0; x < data.width; ++x) {
+            glm::vec3 current = getVertexFromPixel(data, x, z);
+
+            if (z + 1 < data.height) {
+                glm::vec3 neighbor = getVertexFromPixel(data, x, z+1);
+                vertices.push_back(current);
+                vertices.push_back(neighbor);
+            }
+
+            if (x + 1 < data.width) {
+                glm::vec3 neighbor = getVertexFromPixel(data, x + 1, z);
+                vertices.push_back(current);
+                vertices.push_back(neighbor);
+            }
+        }
+    }
+    clearAndLoadNewVertices(vertices, wireframeVAO, wireframeVBO);
+    return vertices.size();
 }
 
 
@@ -370,9 +397,9 @@ int main(int argc, char** argv)
     // Create dot cloud + lines vertices + wireframe vertices
     GLuint dotVAO, dotVBO, lineVAO, lineVBO, wireframeVAO, wireframeVBO;
     float minHeight, maxHeight;
-    int dotAmount = loadDotVertices(image_data, false, false, &dotVAO, &dotVBO, &maxHeight, &minHeight);
-    loadDotVertices(image_data, true, false, &lineVAO, &lineVBO, &maxHeight, &minHeight);
-    int wireframeDotAmount = loadDotVertices(image_data, false, true, &wireframeVAO, &wireframeVBO, &maxHeight, &minHeight);
+    int dotAmount = loadDotVertices(image_data, false, &dotVAO, &dotVBO, &maxHeight, &minHeight);
+    loadDotVertices(image_data, true, &lineVAO, &lineVBO, &maxHeight, &minHeight);
+    int wireframeDotAmount = loadWireframeVertices(image_data, &wireframeVAO, &wireframeVBO);
 
     // Light VAO and VBO
     GLuint lightVAO, lightVBO;
@@ -381,6 +408,8 @@ int main(int argc, char** argv)
     glBindVertexArray(lightVAO);
     glBindBuffer(GL_ARRAY_BUFFER, lightVBO);
 
+
+    // Shader
     const Shader lightShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/light_vertex.glsl")
                                               .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/light_frag.glsl")
                                               .build();
@@ -415,22 +444,27 @@ int main(int argc, char** argv)
         const glm::mat4 view = trackball.viewMatrix();
         const glm::mat4 projection = trackball.projectionMatrix();
         const glm::mat4 mvp = projection * view * model;
+
+        // Draw Flat Image
+        if (render_quad) {
+
+        }
         
+        //Shader and variable setup
+        dotShader.bind();
+        const int mode = static_cast<int>(dot_render_mode);
+        glUniform3fv(dotShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
+        glUniform3fv(dotShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
+        glUniform1iv(dotShader.getUniformLocation("mode"), 1, &mode);
+        glUniform1f(dotShader.getUniformLocation("minHeight"), minHeight);
+        glUniform1f(dotShader.getUniformLocation("maxHeight"), maxHeight);
+        glUniform1f(dotShader.getUniformLocation("minDistanceToCamera"), minDistanceToCamera);
+        glUniform1f(dotShader.getUniformLocation("maxDistanceToCamera"), maxDistanceToCamera);
+        glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
+        glUniform3fv(dotShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(cameraPos));
+
         // Draw dots
         if (render_dots) {
-
-            //Shader and variable setup
-            dotShader.bind();
-            const int mode = static_cast<int>(dot_render_mode);
-            glUniform3fv(dotShader.getUniformLocation("color1"), 1, glm::value_ptr(dot_color_1));
-            glUniform3fv(dotShader.getUniformLocation("color2"), 1, glm::value_ptr(dot_color_2));
-            glUniform1iv(dotShader.getUniformLocation("mode"), 1, &mode);
-            glUniform1f(dotShader.getUniformLocation("minHeight"), minHeight);
-            glUniform1f(dotShader.getUniformLocation("maxHeight"), maxHeight);
-            glUniform1f(dotShader.getUniformLocation("minDistanceToCamera"), minDistanceToCamera);
-            glUniform1f(dotShader.getUniformLocation("maxDistanceToCamera"), maxDistanceToCamera);
-            glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
-            glUniform3fv(dotShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(cameraPos));
             
             // Render dots
             glPointSize(dot_size);
@@ -449,6 +483,11 @@ int main(int argc, char** argv)
                 glDrawArrays(GL_LINES, 0, wireframeDotAmount);
             }
             glBindVertexArray(0);
+        }
+
+        // Draw triangles
+        if (render_triangles) {
+            
         }
 
         // Draw lights as (square) points.
