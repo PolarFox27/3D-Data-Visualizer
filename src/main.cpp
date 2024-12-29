@@ -103,12 +103,26 @@ size_t selectedLightIndex = 0;
 
 static void printHelp()
 {
+    std::cout << std::endl << "********************Camera Usage:********************" << std::endl << std::endl;
     Trackball::printHelp();
     std::cout << std::endl;
-    std::cout << "Program Usage:" << std::endl;
-    std::cout << "=============================" << std::endl;
-    std::cout << "TODO: Print Message + Keyboard Shortcuts" << std::endl;
-    std::cout << "=============================" << std::endl;
+    std::cout << "*****************Keyboard Shortcuts:*****************" << std::endl << std::endl;
+    std::cout << "TAB -> show/hide menu" << std::endl;
+    std::cout << "H   -> show help" << std::endl;
+    std::cout << "______________________" << std::endl << std::endl;
+    std::cout << "L       -> place the light source at the current camera position" << std::endl;
+    std::cout << "Shift+L -> add an additional light source at the current camera position" << std::endl;
+    std::cout << "+       -> choose next light source" << std::endl;
+    std::cout << "-       -> choose previous light source" << std::endl;
+    std::cout << "N       -> clear all light sources and reinitialize with one" << std::endl;
+    std::cout << "______________________" << std::endl << std::endl;
+    std::cout << "R       -> add 0.1 to the red channel of the selected light" << std::endl;
+    std::cout << "G       -> add 0.1 to the green channel of the selected light" << std::endl;
+    std::cout << "B       -> add 0.1 to the blue channel of the selected light" << std::endl;
+    std::cout << "Shift+R -> substract 0.1 from the red channel of the selected light" << std::endl;
+    std::cout << "Shift+G -> substract 0.1 from the green channel of the selected light" << std::endl;
+    std::cout << "Shift+B -> substract 0.1 from the blue channel of the selected light" << std::endl;
+    std::cout << std::endl << "*****************************************************" << std::endl << std::endl;
 }
 
 static void resetLights()
@@ -139,7 +153,7 @@ static void renderGUI()
 
     // Title
     ImGui::Begin("3D Data Visualizer");
-    ImGui::Text("Press \\ to show/hide this menu");
+    ImGui::Text("Press TAB to show/hide this menu");
     ImGui::Separator();
     
     // Quads Rendering
@@ -446,6 +460,91 @@ int main(int argc, char** argv)
     render_height = image_data.render_height;
     render_size = image_data.render_size;
 
+    window.registerKeyCallback([&](int key, int /* scancode */, int action, int /* mods */) {
+        if (key == GLFW_KEY_TAB && action == GLFW_PRESS) {
+            show_imgui = !show_imgui;
+        }
+
+        if (action != GLFW_RELEASE)
+            return;
+
+        const bool shiftPressed = window.isKeyPressed(GLFW_KEY_LEFT_SHIFT) || window.isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+
+        switch (key) {
+        case GLFW_KEY_H: {
+            printHelp();
+            return;
+        }
+        case GLFW_KEY_L: {
+            if (shiftPressed)
+                lights.push_back(Light{ trackball.position(), glm::vec3(1) });
+            else
+                lights[selectedLightIndex].position = trackball.position();
+            return;
+        }
+        case GLFW_KEY_MINUS: {
+            selectPreviousLight();
+            return;
+        }
+        case GLFW_KEY_EQUAL: {
+            if (shiftPressed) // '+' pressed (unless you use a weird keyboard layout).
+                selectNextLight();
+            return;
+        }
+        case GLFW_KEY_N: {
+            resetLights();
+            return;
+        }
+        case GLFW_KEY_R: {
+            if (shiftPressed) { // If shift pressed, decrease selected light red channel by 0.1
+                if(lights[selectedLightIndex].color.x >= 0.1f)
+                    lights[selectedLightIndex].color.x -= 0.1f;
+            }
+            else { // Else, increase selected light red channel by 0.1
+                if (lights[selectedLightIndex].color.x <= 0.9f)
+                    lights[selectedLightIndex].color.x += 0.1f;
+            }
+            std::cout << "Light " << selectedLightIndex << " color : [" << lights[selectedLightIndex].color.x << ", "
+                << lights[selectedLightIndex].color.y << ", "
+                << lights[selectedLightIndex].color.z << "]"
+                << std::endl;
+            return;
+        }
+        case GLFW_KEY_G: {
+            if (shiftPressed) { // If shift pressed, decrease selected light green channel by 0.1
+                if (lights[selectedLightIndex].color.y >= 0.1f)
+                    lights[selectedLightIndex].color.y -= 0.1f;
+            }
+            else { // Else, increase selected light green channel by 0.1
+                if (lights[selectedLightIndex].color.y <= 0.9f)
+                    lights[selectedLightIndex].color.y += 0.1f;
+            }
+            std::cout << "Light " << selectedLightIndex << " color : [" << lights[selectedLightIndex].color.x << ", "
+                                                                        << lights[selectedLightIndex].color.y << ", "
+                                                                        << lights[selectedLightIndex].color.z << "]"
+                                                                        << std::endl;
+            return;
+        }
+        case GLFW_KEY_B: {
+            if (shiftPressed) { // If shift pressed, decrease selected light blue channel by 0.1
+                if (lights[selectedLightIndex].color.z >= 0.1f)
+                    lights[selectedLightIndex].color.z -= 0.1f;
+            }
+            else { // Else, increase selected light blue channel by 0.1
+                if (lights[selectedLightIndex].color.z <= 0.9f)
+                    lights[selectedLightIndex].color.z += 0.1f;
+            }
+            std::cout << "Light " << selectedLightIndex << " color : [" << lights[selectedLightIndex].color.x << ", "
+                << lights[selectedLightIndex].color.y << ", "
+                << lights[selectedLightIndex].color.z << "]"
+                << std::endl;
+            return;
+        }
+        default:
+            return;
+        };
+        });
+
     // Create dot cloud + lines vertices + wireframe vertices
     GLuint dotVAO, dotVBO, lineVAO, lineVBO, wireframeVAO, wireframeVBO;
     float minHeight, maxHeight;
@@ -564,21 +663,21 @@ int main(int argc, char** argv)
             glDrawArrays(GL_TRIANGLES, 0, triangleVerticesAmount);
         }
 
-        // Draw lights as (square) points.
+        // Draw lights as (square) points. The selected light is bigger
         lightShader.bind();
         {
             const glm::vec4 screenPos = mvp * glm::vec4(lights[selectedLightIndex].position, 1.0f);
-            const glm::vec3 color { 1, 1, 0 };
 
-            glPointSize(15.0f);
+            glPointSize(30.0f);
             glUniform4fv(lightShader.getUniformLocation("pos"), 1, glm::value_ptr(screenPos));
-            glUniform3fv(lightShader.getUniformLocation("color"), 1, glm::value_ptr(color));
+            glUniform3fv(lightShader.getUniformLocation("color"), 1, glm::value_ptr(lights[selectedLightIndex].color));
             glBindVertexArray(lightVAO);
             glDrawArrays(GL_POINTS, 0, 1);
             glBindVertexArray(0);
         }
         for (const Light& light : lights) {
             const glm::vec4 screenPos = mvp * glm::vec4(light.position, 1.0f);
+            // const glm::vec3 color { 1, 0, 0 };
 
             glPointSize(10.0f);
             glUniform4fv(lightShader.getUniformLocation("pos"), 1, glm::value_ptr(screenPos));
@@ -586,6 +685,7 @@ int main(int argc, char** argv)
             glBindVertexArray(lightVAO);
             glDrawArrays(GL_POINTS, 0, 1);
             glBindVertexArray(0);
+
         }
 
         // Present result to the screen.
