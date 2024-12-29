@@ -38,12 +38,6 @@ enum class DotRenderingMode {
     CameraDistanceGradient = 2
 };
 
-// Triangle Rendering Mode Enum
-enum class TriangleRenderingMode {
-    FixedColor = 0,
-    DiffuseLighting = 1
-};
-
 // Pixels and Image Data
 struct Pixel {
     unsigned char R;
@@ -80,6 +74,8 @@ ImageData image_data;
 bool show_imgui = true;
 glm::vec3 color_1{ 1.0f, 0.0f, 0.0f };
 glm::vec3 color_2{ 0.0f, 1.0f, 0.0f };
+float render_height = 5.0f;
+float render_size = 20.0f;
 
 // Quad
 bool render_quad = false;
@@ -93,7 +89,7 @@ DotRenderingMode dot_render_mode = DotRenderingMode::FixedColor;
 
 // Triangles
 bool render_triangles = false;
-TriangleRenderingMode triangle_render_mode = TriangleRenderingMode::FixedColor;
+bool triangle_heuristics = true;
 
 // Lights
 std::vector<Light> lights {};
@@ -151,6 +147,8 @@ static void renderGUI()
     ImGui::Checkbox("Render Flat Image", &render_quad);
     ImGui::ColorEdit3("Color 1", &color_1[0]);
     ImGui::ColorEdit3("Color 2", &color_2[0]);
+    ImGui::InputFloat("Width", &render_size);
+    ImGui::InputFloat("Height", &render_height);
     ImGui::Separator();
 
     // Dots Rendering
@@ -170,11 +168,7 @@ static void renderGUI()
     // Triangles Rendering
     ImGui::Text("Triangles");
     ImGui::Checkbox("Show Triangles", &render_triangles);
-    // Dropdown for triangle render style
-    std::array triangle_render_mode_names{ "Fixed Color", "Diffuse Lighting" };
-    int current_triangle_render_mode = static_cast<int>(triangle_render_mode);
-    ImGui::Combo("Render Mode", &current_triangle_render_mode, triangle_render_mode_names.data(), (int)triangle_render_mode_names.size());
-    triangle_render_mode = static_cast<TriangleRenderingMode>(current_triangle_render_mode);
+    ImGui::Checkbox("Use Heuristics", &triangle_heuristics);
     ImGui::Separator();
 
     //Lights Rendering
@@ -361,7 +355,7 @@ static int loadDotVertices(ImageData data, bool lines, GLuint* dotVAO, GLuint* d
 
 static int loadWireframeVertices(ImageData data, GLuint* wireframeVAO, GLuint* wireframeVBO) {
     std::vector<glm::vec3> vertices;
-    vertices.reserve(data.width * data.height);
+    vertices.reserve(data.width * data.height * 4);
 
     for (int z = 0; z < data.height; ++z) {
         for (int x = 0; x < data.width; ++x) {
@@ -384,15 +378,73 @@ static int loadWireframeVertices(ImageData data, GLuint* wireframeVAO, GLuint* w
     return vertices.size();
 }
 
+static std::vector<glm::vec3> computeBestTriangles(bool use_heuristics, glm::vec3 bottom_left, glm::vec3 top_left, glm::vec3 bottom_right, glm::vec3 top_right) {
+    std::vector<glm::vec3> vertices;
+    vertices.reserve(6);
+
+    // Case 1 : Diagonal top_left - bottom_right
+    glm::vec3 n1 = glm::normalize(glm::cross(bottom_left - top_left, bottom_left - bottom_right));
+    glm::vec3 n2 = glm::normalize(glm::cross(top_right - bottom_right, top_right - top_left));
+
+    // Case 2 : Diagonal bottom_left - top_right
+    glm::vec3 m1 = glm::normalize(glm::cross(top_left - top_right, top_left - bottom_left));
+    glm::vec3 m2 = glm::normalize(glm::cross(bottom_right - bottom_left, bottom_right - top_right));
+
+
+    if (!use_heuristics || glm::length(n1 - n2) < glm::length(m1 - m2)) { // Case 1 is better or heuristics not used
+        vertices.push_back(bottom_left);
+        vertices.push_back(top_left);
+        vertices.push_back(bottom_right);
+        vertices.push_back(top_right);
+        vertices.push_back(top_left);
+        vertices.push_back(bottom_right);
+    }
+    else { // Case 2 is better
+        vertices.push_back(bottom_left);
+        vertices.push_back(top_left);
+        vertices.push_back(top_right);
+        vertices.push_back(top_right);
+        vertices.push_back(bottom_left);
+        vertices.push_back(bottom_right);
+    }
+    
+    
+    return vertices;
+}
+
+static int loadTriangleVertices(ImageData data, GLuint* triangleVAO, GLuint* triangleVBO, bool use_heuristics) {
+    std::vector<glm::vec3> vertices;
+    vertices.reserve(data.width * data.height * 6);
+
+    for (int z = 0; z < data.height-1; ++z) {
+        for (int x = 0; x < data.width-1; ++x) {
+            glm::vec3 bottom_left = getVertexFromPixel(data, x, z);
+            glm::vec3 top_left = getVertexFromPixel(data, x, z+1);
+            glm::vec3 bottom_right = getVertexFromPixel(data, x+1, z);
+            glm::vec3 top_right = getVertexFromPixel(data, x+1, z+1);
+            std::vector<glm::vec3> triangles = computeBestTriangles(use_heuristics, bottom_left, top_left, bottom_right, top_right);
+            for (int i = 0; i < 6; i++) {
+                vertices.push_back(triangles[i]);
+            }
+        }
+    }
+    clearAndLoadNewVertices(vertices, triangleVAO, triangleVBO);
+    return vertices.size();
+}
+
 
 // Program entry point. Everything starts here.
 int main(int argc, char** argv)
 {
     // Create program window
     Window window{ "3D Data Visualizer", glm::ivec2(WIDTH, HEIGHT), OpenGLVersion::GL41 };
+    glEnable(GL_DEPTH);
+    glEnable(GL_DEPTH_TEST);
 
     // Parse initial scene config TOML
     Trackball trackball = readInitialConfig(&window, image_data, lights);
+    render_height = image_data.render_height;
+    render_size = image_data.render_size;
 
     // Create dot cloud + lines vertices + wireframe vertices
     GLuint dotVAO, dotVBO, lineVAO, lineVBO, wireframeVAO, wireframeVBO;
@@ -400,6 +452,11 @@ int main(int argc, char** argv)
     int dotAmount = loadDotVertices(image_data, false, &dotVAO, &dotVBO, &maxHeight, &minHeight);
     loadDotVertices(image_data, true, &lineVAO, &lineVBO, &maxHeight, &minHeight);
     int wireframeDotAmount = loadWireframeVertices(image_data, &wireframeVAO, &wireframeVBO);
+
+    // Create triangle vertices
+    GLuint triangleVAO, triangleVBO;
+    int triangleVerticesAmount = loadTriangleVertices(image_data, &triangleVAO, &triangleVBO, triangle_heuristics);
+    bool heuristics_used = triangle_heuristics;
 
     // Light VAO and VBO
     GLuint lightVAO, lightVBO;
@@ -428,6 +485,22 @@ int main(int argc, char** argv)
         glViewport(0, 0, window.getWindowSize().x, window.getWindowSize().y);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // Check if render dimensions changed and update vertices
+        if (render_height != image_data.render_height || render_size != image_data.render_size) {
+            image_data.render_height = render_height;
+            image_data.render_size = render_size;
+            dotAmount = loadDotVertices(image_data, false, &dotVAO, &dotVBO, &maxHeight, &minHeight);
+            loadDotVertices(image_data, true, &lineVAO, &lineVBO, &maxHeight, &minHeight);
+            wireframeDotAmount = loadWireframeVertices(image_data, &wireframeVAO, &wireframeVBO);
+            triangleVerticesAmount = loadTriangleVertices(image_data, &triangleVAO, &triangleVBO, triangle_heuristics);
+        }
+
+        // Check if heuristics parameters changed
+        if (triangle_heuristics != heuristics_used) {
+            heuristics_used = triangle_heuristics;
+            triangleVerticesAmount = loadTriangleVertices(image_data, &triangleVAO, &triangleVBO, triangle_heuristics);
+        }
 
         // Compute distance to camera
         const glm::vec3 cameraPos = trackball.position();
@@ -487,7 +560,8 @@ int main(int argc, char** argv)
 
         // Draw triangles
         if (render_triangles) {
-            
+            glBindVertexArray(triangleVAO);
+            glDrawArrays(GL_TRIANGLES, 0, triangleVerticesAmount);
         }
 
         // Draw lights as (square) points.
