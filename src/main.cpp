@@ -307,6 +307,10 @@ static Trackball readInitialConfig(Window* window, ImageData& image, std::vector
 
 //===========================================================================
 
+
+
+//============================Vertices Functions=============================
+
 static float heightFromPixel(Pixel pixel) {
     return 0.299f * static_cast<float>(pixel.R) / 255.0f
          + 0.587f * static_cast<float>(pixel.G) / 255.0f
@@ -446,6 +450,75 @@ static int loadTriangleVertices(ImageData data, GLuint* triangleVAO, GLuint* tri
     return vertices.size();
 }
 
+static int loadQuadVertices(ImageData data, GLuint* quadVAO, GLuint* quadVBO, GLuint* quadEBO) {
+    float offsetX = -0.5f * data.render_size / static_cast<float>(data.width);
+    float offsetZ = -0.5f * data.render_size / static_cast<float>(data.height);
+    float vertices[] = {
+        // Positions                                                                // Texture Coords
+        -0.5f*data.render_size + offsetX, 0.0f, -0.5f * data.render_size + offsetZ,  0.0f, 0.0f, // Bottom-left
+         0.5f * data.render_size + offsetX, 0.0f, -0.5f * data.render_size + offsetZ,  1.0f, 0.0f, // Bottom-right
+         0.5f * data.render_size + offsetX, 0.0f,  0.5f * data.render_size + offsetZ,  1.0f, 1.0f, // Top-right
+        -0.5f * data.render_size + offsetX, 0.0f, 0.5f * data.render_size + offsetZ,  0.0f, 1.0f  // Top-left
+    };
+    unsigned int indices[] = {
+        0, 1, 2,  // First Triangle
+        2, 3, 0   // Second Triangle
+    };
+    
+    // Clean previous VAO and VBO
+    glDeleteVertexArrays(1, quadVAO);
+    glDeleteBuffers(1, quadVBO);
+    glDeleteBuffers(1, quadEBO);
+
+    // Generate new VAO and VBO
+    glGenVertexArrays(1, quadVAO);
+    glGenBuffers(1, quadVBO);
+    glGenBuffers(1, quadEBO);
+
+    // Bind VAO
+    glBindVertexArray(*quadVAO);
+
+    // Bind and set VBO data
+    glBindBuffer(GL_ARRAY_BUFFER, *quadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    // Bind and set EBO data
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, *quadEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+    // Vertex attribute: positions
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Vertex attribute: texture coordinates
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    glBindVertexArray(0); // Unbind VAO
+    return 6;
+}
+
+//===========================================================================
+
+
+static GLuint createTexture(ImageData data) {
+    GLuint texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    // Set texture parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Upload texture data
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, data.width, data.height, 0, GL_RGB, GL_UNSIGNED_BYTE, data.pixels.data());
+
+    glBindTexture(GL_TEXTURE_2D, 0); // Unbind texture
+    return texture;
+}
+
 
 // Program entry point. Everything starts here.
 int main(int argc, char** argv)
@@ -564,6 +637,11 @@ int main(int argc, char** argv)
     glBindVertexArray(lightVAO);
     glBindBuffer(GL_ARRAY_BUFFER, lightVBO);
 
+    // Quad Texture and Vertices
+    GLuint quadTexture = createTexture(image_data);
+    GLuint quadVAO, quadVBO, quadEBO;
+    loadQuadVertices(image_data, &quadVAO, &quadVBO, &quadEBO);
+
 
     // Shader
     const Shader lightShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/light_vertex.glsl")
@@ -572,6 +650,9 @@ int main(int argc, char** argv)
     const Shader dotShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/dot_vertex.glsl")
                                             .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/dot_frag.glsl")
                                             .build();
+    const Shader quadShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/quad_vertex.glsl")
+                                             .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/quad_frag.glsl")
+                                             .build();
 
 
     // Main loop.
@@ -593,6 +674,7 @@ int main(int argc, char** argv)
             loadDotVertices(image_data, true, &lineVAO, &lineVBO, &maxHeight, &minHeight);
             wireframeDotAmount = loadWireframeVertices(image_data, &wireframeVAO, &wireframeVBO);
             triangleVerticesAmount = loadTriangleVertices(image_data, &triangleVAO, &triangleVBO, triangle_heuristics);
+            loadQuadVertices(image_data, &quadVAO, &quadVBO, &quadEBO);
         }
 
         // Check if heuristics parameters changed
@@ -619,7 +701,16 @@ int main(int argc, char** argv)
 
         // Draw Flat Image
         if (render_quad) {
+            quadShader.bind();
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, quadTexture);
+            glUniform1i(quadShader.getUniformLocation("texture1"), 0); // Pass texture unit 0
+            glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
 
+            // Render the quad
+            glBindVertexArray(quadVAO);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+            glBindVertexArray(0);
         }
         
         //Shader and variable setup
@@ -695,8 +786,13 @@ int main(int argc, char** argv)
     // Cleanup
     glDeleteBuffers(1, &lightVBO);
     glDeleteBuffers(1, &dotVBO);
+    glDeleteBuffers(1, &quadEBO);
+    glDeleteBuffers(1, &quadVBO);
+    glDeleteBuffers(1, &wireframeVBO);
     glDeleteVertexArrays(1, &lightVAO);
     glDeleteVertexArrays(1, &dotVAO);
+    glDeleteVertexArrays(1, &quadVAO);
+    glDeleteVertexArrays(1, &wireframeVAO);
 
     return 0;
 }
