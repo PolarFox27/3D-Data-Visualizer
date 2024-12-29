@@ -1,31 +1,3 @@
-// Disable compiler warnings in third-party code (which we cannot change).
-#include <framework/disable_all_warnings.h>
-#include <framework/opengl_includes.h>
-DISABLE_WARNINGS_PUSH()
-// Include glad before glfw3
-#include <GLFW/glfw3.h>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <glm/mat4x4.hpp>
-#include <glm/vec2.hpp>
-#include <glm/vec3.hpp>
-#include <glm/vec4.hpp>
-#include <stb/stb_image.h>
-DISABLE_WARNINGS_POP()
-#include <algorithm>
-#include <cassert>
-#include <cstdlib> // EXIT_FAILURE
-#include <framework/shader.h>
-#include <framework/trackball.h>
-#include <framework/window.h>
-#include <iostream>
-#include <numeric>
-#include <optional>
-#include <span>
-#include <toml/toml.hpp>
-#include <vector>
-#include <array>
-#include <chrono>
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_opengl2.h>
@@ -118,71 +90,6 @@ static void deleteLight()
 
     if (selectedLightIndex > 0)
         selectedLightIndex -= 1;
-}
-
-// Draws the UI menu
-static void renderGUI()
-{
-    // UI Menu
-    if (!show_imgui)
-        return;
-
-    // Title
-    ImGui::Begin("3D Data Visualizer");
-    ImGui::Text("Press TAB to show/hide this menu");
-    ImGui::Separator();
-
-    // Quads Rendering
-    ImGui::Text("Base Parameters");
-    ImGui::Checkbox("Render Flat Image", &render_quad);
-    ImGui::ColorEdit3("Color 1", &color_1[0]);
-    ImGui::ColorEdit3("Color 2", &color_2[0]);
-    ImGui::InputFloat("Width", &render_size);
-    ImGui::InputFloat("Height", &render_height);
-    ImGui::Separator();
-
-    // Dots Rendering
-    ImGui::Text("Dots");
-    ImGui::Checkbox("Show Dots", &render_dots);
-    ImGui::InputFloat("Dot Size", &dot_size);
-    // Dropdown for dot render style
-    std::array dot_render_mode_names{ "Fixed Color", "Gradient based on Height", "Gradient based on distance to Camera" };
-    int current_dot_render_mode = static_cast<int>(dot_render_mode);
-    ImGui::Combo("Render Mode", &current_dot_render_mode, dot_render_mode_names.data(), (int)dot_render_mode_names.size());
-    dot_render_mode = static_cast<DotRenderingMode>(current_dot_render_mode);
-    ImGui::Checkbox("Show Lines", &render_lines);
-    ImGui::Checkbox("Show Wireframe", &render_wireframe);
-    ImGui::Separator();
-
-
-    // Triangles Rendering
-    ImGui::Text("Triangles");
-    ImGui::Checkbox("Show Triangles", &render_triangles);
-    ImGui::Checkbox("Use Heuristics", &triangle_heuristics);
-    ImGui::Separator();
-
-    //Lights Rendering
-    ImGui::Text("Lights");
-    std::vector<std::string> itemStrings = {};
-    for (size_t i = 0; i < lights.size(); i++) {
-        auto string = "Light " + std::to_string(i);
-        itemStrings.push_back(string);
-    }
-    std::vector<const char*> itemCStrings = {};
-    for (const auto& string : itemStrings) {
-        itemCStrings.push_back(string.c_str());
-    }
-    int tempSelectedItem = static_cast<int>(selectedLightIndex);
-    if (ImGui::ListBox("Lights", &tempSelectedItem, itemCStrings.data(), (int)itemCStrings.size(), 4)) {
-        selectedLightIndex = static_cast<size_t>(tempSelectedItem);
-    }
-    if (ImGui::Button("Reset Lights")) {
-        resetLights();
-    }
-
-    // End GUI
-    ImGui::End();
-    ImGui::Render();
 }
 
 // Prints the time elapsed during the start and end points
@@ -290,4 +197,69 @@ static void keyPressedHandler(int key, int /* scancode */, int action, int /* mo
     default:
         return;
     };
+}
+
+// Draws the UI menu
+static void renderGUI()
+{
+    // UI Menu
+    if (!show_imgui)
+        return;
+
+    // Title
+    ImGui::Begin("3D Data Visualizer");
+    ImGui::Text("Press TAB to show/hide this menu");
+    ImGui::Separator();
+
+    // Quads Rendering
+    ImGui::Text("Base Parameters");
+    ImGui::Checkbox("Render Flat Image", &render_quad);
+    ImGui::ColorEdit3("Color 1", &color_1[0]);
+    ImGui::ColorEdit3("Color 2", &color_2[0]);
+    ImGui::InputFloat("Width", &render_size);
+    ImGui::InputFloat("Height", &render_height);
+    ImGui::Separator();
+
+    // Dots Rendering
+    ImGui::Text("Dots");
+    ImGui::Checkbox("Show Dots", &render_dots);
+    ImGui::InputFloat("Dot Size", &dot_size);
+    // Dropdown for dot render style
+    std::array dot_render_mode_names{ "Fixed Color", "Gradient based on Height", "Gradient based on distance to Camera" };
+    int current_dot_render_mode = static_cast<int>(dot_render_mode);
+    ImGui::Combo("Render Mode", &current_dot_render_mode, dot_render_mode_names.data(), (int)dot_render_mode_names.size());
+    dot_render_mode = static_cast<DotRenderingMode>(current_dot_render_mode);
+    ImGui::Checkbox("Show Lines", &render_lines);
+    ImGui::Checkbox("Show Wireframe", &render_wireframe);
+    ImGui::Separator();
+
+
+    // Triangles Rendering
+    ImGui::Text("Triangles");
+    ImGui::Checkbox("Show Triangles", &render_triangles);
+    ImGui::Checkbox("Use Heuristics", &triangle_heuristics);
+    ImGui::Separator();
+
+    //Lights Rendering
+    ImGui::Text("Lights");
+    std::vector<std::string> itemStrings = {};
+    for (size_t i = 0; i < lights.size(); i++) {
+        auto string = "Light " + std::to_string(i);
+        itemStrings.push_back(string);
+    }
+    std::vector<const char*> itemCStrings = {};
+    for (const auto& string : itemStrings) {
+        itemCStrings.push_back(string.c_str());
+    }
+    int tempSelectedItem = static_cast<int>(selectedLightIndex);
+    if (ImGui::ListBox("Lights", &tempSelectedItem, itemCStrings.data(), (int)itemCStrings.size(), 4)) {
+        selectedLightIndex = static_cast<size_t>(tempSelectedItem);
+    }
+    if (ImGui::Button("Reset Lights")) {
+        resetLights();
+    }
+
+    // End GUI
+    ImGui::End();
+    ImGui::Render();
 }
