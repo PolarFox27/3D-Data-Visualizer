@@ -8,8 +8,11 @@ elseif(PROJECT_IS_TOP_LEVEL)
 	add_subdirectory("../../../framework/" "${CMAKE_CURRENT_BINARY_DIR}/framework/")
 endif()
 
-add_executable(3D-Data-Visualizer "src/main.cpp"
-)
+add_executable(3D-Data-Visualizer "src/main.cpp")
+
+# Include the "include" folder for header files
+target_include_directories(3D-Data-Visualizer PRIVATE "${CMAKE_CURRENT_LIST_DIR}/include")
+
 target_compile_definitions(3D-Data-Visualizer PRIVATE RESOURCE_ROOT="${CMAKE_CURRENT_LIST_DIR}/")
 target_compile_features(3D-Data-Visualizer PRIVATE cxx_std_20)
 target_link_libraries(3D-Data-Visualizer PRIVATE CGFramework)

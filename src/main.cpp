@@ -1,217 +1,7 @@
-// Disable compiler warnings in third-party code (which we cannot change).
-#include <framework/disable_all_warnings.h>
-#include <framework/opengl_includes.h>
-DISABLE_WARNINGS_PUSH()
-// Include glad before glfw3
-#include <GLFW/glfw3.h>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <glm/mat4x4.hpp>
-#include <glm/vec2.hpp>
-#include <glm/vec3.hpp>
-#include <glm/vec4.hpp>
-#include <stb/stb_image.h>
-DISABLE_WARNINGS_POP()
-#include <algorithm>
-#include <cassert>
-#include <cstdlib> // EXIT_FAILURE
-#include <framework/shader.h>
-#include <framework/trackball.h>
-#include <framework/window.h>
-#include <imgui/imgui.h>
-#include <imgui/imgui_impl_glfw.h>
-#include <imgui/imgui_impl_opengl2.h>
-#include <iostream>
-#include <numeric>
-#include <optional>
-#include <span>
-#include <toml/toml.hpp>
-#include <vector>
-#include <array>
-
-//============================ENUMS AND STRUCTS===============================
-
-// Dot Rendering Mode Enum
-enum class DotRenderingMode {
-    FixedColor = 0,
-    HeightGradient = 1,
-    CameraDistanceGradient = 2
-};
-
-// Pixels and Image Data
-struct Pixel {
-    unsigned char R;
-    unsigned char G;
-    unsigned char B;
-};
-
-// Image Data
-struct ImageData {
-    std::vector<Pixel> pixels;  // The image pixel data
-    int width;                  // The image width (in pixels)
-    int height;                 // The image height (in pixels)
-    float render_size;          // The dot cloud render width
-    float render_height;        // The dot cloud render height
-};
-
-// Light
-struct Light {
-    glm::vec3 position;
-    glm::vec3 color;
-};
-
-//===========================================================================
-
-
-
-//==============================Configuration================================
+#include <gui.h>
 
 const int WIDTH = 1200;
 const int HEIGHT = 800;
-ImageData image_data;
-
-
-bool show_imgui = true;
-glm::vec3 color_1{ 1.0f, 0.0f, 0.0f };
-glm::vec3 color_2{ 0.0f, 1.0f, 0.0f };
-float render_height = 5.0f;
-float render_size = 20.0f;
-
-// Quad
-bool render_quad = false;
-
-// Dots
-bool render_dots = false;
-bool render_lines = false;
-bool render_wireframe = false;
-float dot_size = 2.0f;
-DotRenderingMode dot_render_mode = DotRenderingMode::FixedColor;
-
-// Triangles
-bool render_triangles = false;
-bool triangle_heuristics = true;
-
-// Lights
-std::vector<Light> lights {};
-size_t selectedLightIndex = 0;
-
-//===========================================================================
-
-
-
-//============================UI Helper Functions============================
-
-static void printHelp()
-{
-    std::cout << std::endl << "********************Camera Usage:********************" << std::endl << std::endl;
-    Trackball::printHelp();
-    std::cout << std::endl;
-    std::cout << "*****************Keyboard Shortcuts:*****************" << std::endl << std::endl;
-    std::cout << "TAB -> show/hide menu" << std::endl;
-    std::cout << "H   -> show help" << std::endl;
-    std::cout << "______________________" << std::endl << std::endl;
-    std::cout << "L       -> place the light source at the current camera position" << std::endl;
-    std::cout << "Shift+L -> add an additional light source at the current camera position" << std::endl;
-    std::cout << "+       -> choose next light source" << std::endl;
-    std::cout << "-       -> choose previous light source" << std::endl;
-    std::cout << "N       -> clear all light sources and reinitialize with one" << std::endl;
-    std::cout << "______________________" << std::endl << std::endl;
-    std::cout << "R       -> add 0.1 to the red channel of the selected light" << std::endl;
-    std::cout << "G       -> add 0.1 to the green channel of the selected light" << std::endl;
-    std::cout << "B       -> add 0.1 to the blue channel of the selected light" << std::endl;
-    std::cout << "Shift+R -> substract 0.1 from the red channel of the selected light" << std::endl;
-    std::cout << "Shift+G -> substract 0.1 from the green channel of the selected light" << std::endl;
-    std::cout << "Shift+B -> substract 0.1 from the blue channel of the selected light" << std::endl;
-    std::cout << std::endl << "*****************************************************" << std::endl << std::endl;
-}
-
-static void resetLights()
-{
-    lights.clear();
-    lights.push_back(Light { glm::vec3(0, 0, 3), glm::vec3(1) });
-    selectedLightIndex = 0;
-}
-
-static void selectNextLight()
-{
-    selectedLightIndex = (selectedLightIndex + 1) % lights.size();
-}
-
-static void selectPreviousLight()
-{
-    if (selectedLightIndex == 0)
-        selectedLightIndex = lights.size() - 1;
-    else
-        --selectedLightIndex;
-}
-
-static void renderGUI()
-{
-    // UI Menu
-    if (!show_imgui)
-        return;
-
-    // Title
-    ImGui::Begin("3D Data Visualizer");
-    ImGui::Text("Press TAB to show/hide this menu");
-    ImGui::Separator();
-    
-    // Quads Rendering
-    ImGui::Text("Base Parameters");
-    ImGui::Checkbox("Render Flat Image", &render_quad);
-    ImGui::ColorEdit3("Color 1", &color_1[0]);
-    ImGui::ColorEdit3("Color 2", &color_2[0]);
-    ImGui::InputFloat("Width", &render_size);
-    ImGui::InputFloat("Height", &render_height);
-    ImGui::Separator();
-
-    // Dots Rendering
-    ImGui::Text("Dots");
-    ImGui::Checkbox("Show Dots", &render_dots);
-    ImGui::InputFloat("Dot Size", &dot_size);
-    // Dropdown for dot render style
-    std::array dot_render_mode_names{ "Fixed Color", "Gradient based on Height", "Gradient based on distance to Camera" };
-    int current_dot_render_mode = static_cast<int>(dot_render_mode);
-    ImGui::Combo("Render Mode", &current_dot_render_mode, dot_render_mode_names.data(), (int)dot_render_mode_names.size());
-    dot_render_mode = static_cast<DotRenderingMode>(current_dot_render_mode);
-    ImGui::Checkbox("Show Lines", &render_lines);
-    ImGui::Checkbox("Show Wireframe", &render_wireframe);
-    ImGui::Separator();
-
-
-    // Triangles Rendering
-    ImGui::Text("Triangles");
-    ImGui::Checkbox("Show Triangles", &render_triangles);
-    ImGui::Checkbox("Use Heuristics", &triangle_heuristics);
-    ImGui::Separator();
-
-    //Lights Rendering
-    ImGui::Text("Lights");
-    std::vector<std::string> itemStrings = {};
-    for (size_t i = 0; i < lights.size(); i++) {
-        auto string = "Light " + std::to_string(i);
-        itemStrings.push_back(string);
-    }
-    std::vector<const char*> itemCStrings = {};
-    for (const auto& string : itemStrings) {
-        itemCStrings.push_back(string.c_str());
-    }
-    int tempSelectedItem = static_cast<int>(selectedLightIndex);
-    if (ImGui::ListBox("Lights", &tempSelectedItem, itemCStrings.data(), (int) itemCStrings.size(), 4)) {
-        selectedLightIndex = static_cast<size_t>(tempSelectedItem);
-    }
-    if (ImGui::Button("Reset Lights")) {
-        resetLights();
-    }
-
-    // End GUI
-    ImGui::End();
-    ImGui::Render();
-}
-
-//===========================================================================
-
-
 
 //=========================Config Loading Functions==========================
 
@@ -317,7 +107,7 @@ static float heightFromPixel(Pixel pixel) {
          + 0.114f * static_cast<float>(pixel.B) / 255.0f;
 }
 
-static glm::vec3 getVertexFromPixel(ImageData data, int x, int z) {
+static glm::vec3 getVertexFromPixel(const ImageData& data, int x, int z) {
     const Pixel pixel = data.pixels[z * data.width + x];
     float y = heightFromPixel(pixel) * data.render_height;
     float xPos = data.render_size * (static_cast<float>(x) / static_cast<float>(data.width) - 0.5f);
@@ -325,7 +115,7 @@ static glm::vec3 getVertexFromPixel(ImageData data, int x, int z) {
     return glm::vec3(xPos, y, zPos);
 }
 
-static void clearAndLoadNewVertices(std::vector<glm::vec3> vertices, GLuint* VAO, GLuint* VBO) {
+static void clearAndLoadNewVertices(const std::vector<glm::vec3>& vertices, GLuint* VAO, GLuint* VBO) {
     // Clean previous VAO and VBO
     glDeleteVertexArrays(1, VAO);
     glDeleteBuffers(1, VBO);
@@ -347,58 +137,120 @@ static void clearAndLoadNewVertices(std::vector<glm::vec3> vertices, GLuint* VAO
     glBindVertexArray(0);
 }
 
-static int loadDotVertices(ImageData data, bool lines, GLuint* dotVAO, GLuint* dotVBO, float* maxHeight, float* minHeight) {
+static void clearAndLoadNewVerticesAndEBO(const std::vector<glm::vec3>& vertices, const std::vector<unsigned int>& indices, GLuint* VAO, GLuint* VBO, GLuint* EBO) {
+    // Clean previous VAO, VBO and EBO
+    glDeleteVertexArrays(1, VAO);
+    glDeleteBuffers(1, VBO);
+    glDeleteBuffers(1, EBO);
+
+    // Generate new VAO, VBO and EBO
+    glGenVertexArrays(1, VAO);
+    glGenBuffers(1, VBO);
+    glGenBuffers(1, EBO);
+    glBindVertexArray(*VAO);
+
+    // Upload all the vertex positions to the VBO
+    glBindBuffer(GL_ARRAY_BUFFER, *VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), vertices.data(), GL_STATIC_DRAW);
+
+    // Upload all the vertex indices to the EBO
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, *EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+
+    // Define the vertex attribute for position
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindVertexArray(0);
+}
+
+
+static std::vector<glm::vec3> loadVertices(ImageData& data, float* maxHeight, float* minHeight) {
+    auto start = std::chrono::high_resolution_clock::now();
     std::vector<glm::vec3> vertices;
-    vertices.reserve(data.width * data.height);
+    vertices.reserve(data.width * data.height * 2);
     *minHeight = data.render_size;
     *maxHeight = 0.0f;
 
-    // Find dot vertices
+    // Compute all vertices
     for (int z = 0; z < data.height; ++z) {
         for (int x = 0; x < data.width; ++x) {
             const glm::vec3 vertex = getVertexFromPixel(data, x, z);
             if (vertex.y < *minHeight) *minHeight = vertex.y;
             else if (vertex.y > *maxHeight) *maxHeight = vertex.y;
-            vertices.emplace_back(vertex);
-                
-            // Add another vertex to draw a vertical line
-            if (lines) {
-                vertices.emplace_back(glm::vec3(vertex.x, 0.0f, vertex.z));
-            }
+            vertices.push_back(vertex);
         }
     }
+
+    // Add base vertices for lines
+    for (int i = 0; i < data.height * data.width; i++) {
+        glm::vec3 v = vertices[i];
+        vertices.push_back(glm::vec3(v.x, 0.0f, v.z));
+    }
+
+    auto end = std::chrono::high_resolution_clock::now();
+    printElapsedTime(start, end, "Creation of data points");
+    return vertices;
+}
+
+static void loadDotVertices(const std::vector<glm::vec3>& vertices, GLuint* dotVAO, GLuint* dotVBO) {
+    auto start = std::chrono::high_resolution_clock::now();
     clearAndLoadNewVertices(vertices, dotVAO, dotVBO);
-    return vertices.size();
+    auto end = std::chrono::high_resolution_clock::now();
+    printElapsedTime(start, end, "Loading of dot vertices");
+    return;
 }
 
-static int loadWireframeVertices(ImageData data, GLuint* wireframeVAO, GLuint* wireframeVBO) {
-    std::vector<glm::vec3> vertices;
-    vertices.reserve(data.width * data.height * 4);
+static int loadLinesVertices(int width, int height, const std::vector<glm::vec3>& vertices, GLuint* lineVAO, GLuint* lineVBO, GLuint* lineEBO) {
+    auto start = std::chrono::high_resolution_clock::now();
+    std::vector<unsigned int> indices;
+    int amount = width * height;
+    indices.reserve(amount * 2);
 
-    for (int z = 0; z < data.height; ++z) {
-        for (int x = 0; x < data.width; ++x) {
-            glm::vec3 current = getVertexFromPixel(data, x, z);
+    for (int i = 0; i < amount; i++) {
 
-            if (z + 1 < data.height) {
-                glm::vec3 neighbor = getVertexFromPixel(data, x, z+1);
-                vertices.push_back(current);
-                vertices.push_back(neighbor);
-            }
+        indices.push_back(i);
+        indices.push_back(i + amount);
+    }
 
-            if (x + 1 < data.width) {
-                glm::vec3 neighbor = getVertexFromPixel(data, x + 1, z);
-                vertices.push_back(current);
-                vertices.push_back(neighbor);
-            }
+    clearAndLoadNewVerticesAndEBO(vertices, indices, lineVAO, lineVBO, lineEBO);
+    auto end = std::chrono::high_resolution_clock::now();
+    printElapsedTime(start, end, "Loading of line vertices");
+    return indices.size();
+}
+
+static int loadWireframeVertices(int width, int height, const std::vector<glm::vec3>& vertices, GLuint* wireframeVAO, GLuint* wireframeVBO, GLuint* wireframeEBO) {
+    auto start = std::chrono::high_resolution_clock::now();
+    std::vector<unsigned int> indices;
+    int amount = width * height;
+    indices.reserve(amount*2);
+
+    for (int i = 0; i < amount; i++) {
+
+        if ((i + 1) % width > 0) {
+            indices.push_back(i);
+            indices.push_back(i+1);
+        }
+
+        if (i + width < amount) {
+            indices.push_back(i);
+            indices.push_back(i + width);
         }
     }
-    clearAndLoadNewVertices(vertices, wireframeVAO, wireframeVBO);
-    return vertices.size();
+    clearAndLoadNewVerticesAndEBO(vertices, indices, wireframeVAO, wireframeVBO, wireframeEBO);
+    auto end = std::chrono::high_resolution_clock::now();
+    printElapsedTime(start, end, "Loading of wireframe vertices");
+    return indices.size();
 }
 
-static std::vector<glm::vec3> computeBestTriangles(bool use_heuristics, glm::vec3 bottom_left, glm::vec3 top_left, glm::vec3 bottom_right, glm::vec3 top_right) {
-    std::vector<glm::vec3> vertices;
-    vertices.reserve(6);
+static std::vector<unsigned int> computeBestTriangles(bool use_heuristics, const std::vector<glm::vec3>& vertices, int bl, int tl, int br, int tr) {
+    std::vector<unsigned int> indices;
+    indices.reserve(6);
+
+    glm::vec3 bottom_left = vertices[bl];
+    glm::vec3 top_left = vertices[tl];
+    glm::vec3 bottom_right = vertices[br];
+    glm::vec3 top_right = vertices[tl];
 
     // Case 1 : Diagonal top_left - bottom_right
     glm::vec3 n1 = glm::normalize(glm::cross(bottom_left - top_left, bottom_left - bottom_right));
@@ -410,47 +262,51 @@ static std::vector<glm::vec3> computeBestTriangles(bool use_heuristics, glm::vec
 
 
     if (!use_heuristics || glm::length(n1 - n2) < glm::length(m1 - m2)) { // Case 1 is better or heuristics not used
-        vertices.push_back(bottom_left);
-        vertices.push_back(top_left);
-        vertices.push_back(bottom_right);
-        vertices.push_back(top_right);
-        vertices.push_back(top_left);
-        vertices.push_back(bottom_right);
+        indices.push_back(bl);
+        indices.push_back(tl);
+        indices.push_back(br);
+        indices.push_back(tr);
+        indices.push_back(tl);
+        indices.push_back(br);
     }
     else { // Case 2 is better
-        vertices.push_back(bottom_left);
-        vertices.push_back(top_left);
-        vertices.push_back(top_right);
-        vertices.push_back(top_right);
-        vertices.push_back(bottom_left);
-        vertices.push_back(bottom_right);
+        indices.push_back(bl);
+        indices.push_back(tl);
+        indices.push_back(tr);
+        indices.push_back(tr);
+        indices.push_back(bl);
+        indices.push_back(br);
     }
     
     
-    return vertices;
+    return indices;
 }
 
-static int loadTriangleVertices(ImageData data, GLuint* triangleVAO, GLuint* triangleVBO, bool use_heuristics) {
-    std::vector<glm::vec3> vertices;
-    vertices.reserve(data.width * data.height * 6);
+static int loadTriangleVertices(int width, int height, const std::vector<glm::vec3>& vertices, GLuint* triangleVAO, GLuint* triangleVBO, GLuint* triangleEBO, bool use_heuristics) {
 
-    for (int z = 0; z < data.height-1; ++z) {
-        for (int x = 0; x < data.width-1; ++x) {
-            glm::vec3 bottom_left = getVertexFromPixel(data, x, z);
-            glm::vec3 top_left = getVertexFromPixel(data, x, z+1);
-            glm::vec3 bottom_right = getVertexFromPixel(data, x+1, z);
-            glm::vec3 top_right = getVertexFromPixel(data, x+1, z+1);
-            std::vector<glm::vec3> triangles = computeBestTriangles(use_heuristics, bottom_left, top_left, bottom_right, top_right);
+    auto start = std::chrono::high_resolution_clock::now();
+    std::vector<unsigned int> indices;
+    indices.reserve(width * height * 6);
+
+    for (int z = 0; z < height-1; ++z) {
+        for (int x = 0; x < width-1; ++x) {
+            int bottom_left = z * width + x;
+            int top_left = (z+1) * width + x;
+            int bottom_right = z * width + x+1;
+            int top_right = (z+1) * width + x+1;
+            std::vector<unsigned int> triangles = computeBestTriangles(use_heuristics, vertices, bottom_left, top_left, bottom_right, top_right);
             for (int i = 0; i < 6; i++) {
-                vertices.push_back(triangles[i]);
+                indices.push_back(triangles[i]);
             }
         }
     }
-    clearAndLoadNewVertices(vertices, triangleVAO, triangleVBO);
-    return vertices.size();
+    clearAndLoadNewVerticesAndEBO(vertices, indices, triangleVAO, triangleVBO, triangleEBO);
+    auto end = std::chrono::high_resolution_clock::now();
+    printElapsedTime(start, end, "Loading of triangle vertices");
+    return indices.size();
 }
 
-static int loadQuadVertices(ImageData data, GLuint* quadVAO, GLuint* quadVBO, GLuint* quadEBO) {
+static int loadQuadVertices(const ImageData& data, GLuint* quadVAO, GLuint* quadVBO, GLuint* quadEBO) {
     float offsetX = -0.5f * data.render_size / static_cast<float>(data.width);
     float offsetZ = -0.5f * data.render_size / static_cast<float>(data.height);
     float vertices[] = {
@@ -501,7 +357,7 @@ static int loadQuadVertices(ImageData data, GLuint* quadVAO, GLuint* quadVBO, GL
 //===========================================================================
 
 
-static GLuint createTexture(ImageData data) {
+static GLuint createTexture(const ImageData& data) {
     GLuint texture;
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -524,110 +380,33 @@ static GLuint createTexture(ImageData data) {
 int main(int argc, char** argv)
 {
     // Create program window
-    Window window{ "3D Data Visualizer", glm::ivec2(WIDTH, HEIGHT), OpenGLVersion::GL41 };
+    Window w{ "3D Data Visualizer", glm::ivec2(WIDTH, HEIGHT), OpenGLVersion::GL41 };
+    WINDOW = &w;
     glEnable(GL_DEPTH);
     glEnable(GL_DEPTH_TEST);
 
     // Parse initial scene config TOML
-    Trackball trackball = readInitialConfig(&window, image_data, lights);
+    Trackball t = readInitialConfig(WINDOW, image_data, lights);
+    TRACKBALL = &t;
     render_height = image_data.render_height;
     render_size = image_data.render_size;
 
-    window.registerKeyCallback([&](int key, int /* scancode */, int action, int /* mods */) {
-        if (key == GLFW_KEY_TAB && action == GLFW_PRESS) {
-            show_imgui = !show_imgui;
-        }
-
-        if (action != GLFW_RELEASE)
-            return;
-
-        const bool shiftPressed = window.isKeyPressed(GLFW_KEY_LEFT_SHIFT) || window.isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
-
-        switch (key) {
-        case GLFW_KEY_H: {
-            printHelp();
-            return;
-        }
-        case GLFW_KEY_L: {
-            if (shiftPressed)
-                lights.push_back(Light{ trackball.position(), glm::vec3(1) });
-            else
-                lights[selectedLightIndex].position = trackball.position();
-            return;
-        }
-        case GLFW_KEY_MINUS: {
-            selectPreviousLight();
-            return;
-        }
-        case GLFW_KEY_EQUAL: {
-            if (shiftPressed) // '+' pressed (unless you use a weird keyboard layout).
-                selectNextLight();
-            return;
-        }
-        case GLFW_KEY_N: {
-            resetLights();
-            return;
-        }
-        case GLFW_KEY_R: {
-            if (shiftPressed) { // If shift pressed, decrease selected light red channel by 0.1
-                if(lights[selectedLightIndex].color.x >= 0.1f)
-                    lights[selectedLightIndex].color.x -= 0.1f;
-            }
-            else { // Else, increase selected light red channel by 0.1
-                if (lights[selectedLightIndex].color.x <= 0.9f)
-                    lights[selectedLightIndex].color.x += 0.1f;
-            }
-            std::cout << "Light " << selectedLightIndex << " color : [" << lights[selectedLightIndex].color.x << ", "
-                << lights[selectedLightIndex].color.y << ", "
-                << lights[selectedLightIndex].color.z << "]"
-                << std::endl;
-            return;
-        }
-        case GLFW_KEY_G: {
-            if (shiftPressed) { // If shift pressed, decrease selected light green channel by 0.1
-                if (lights[selectedLightIndex].color.y >= 0.1f)
-                    lights[selectedLightIndex].color.y -= 0.1f;
-            }
-            else { // Else, increase selected light green channel by 0.1
-                if (lights[selectedLightIndex].color.y <= 0.9f)
-                    lights[selectedLightIndex].color.y += 0.1f;
-            }
-            std::cout << "Light " << selectedLightIndex << " color : [" << lights[selectedLightIndex].color.x << ", "
-                                                                        << lights[selectedLightIndex].color.y << ", "
-                                                                        << lights[selectedLightIndex].color.z << "]"
-                                                                        << std::endl;
-            return;
-        }
-        case GLFW_KEY_B: {
-            if (shiftPressed) { // If shift pressed, decrease selected light blue channel by 0.1
-                if (lights[selectedLightIndex].color.z >= 0.1f)
-                    lights[selectedLightIndex].color.z -= 0.1f;
-            }
-            else { // Else, increase selected light blue channel by 0.1
-                if (lights[selectedLightIndex].color.z <= 0.9f)
-                    lights[selectedLightIndex].color.z += 0.1f;
-            }
-            std::cout << "Light " << selectedLightIndex << " color : [" << lights[selectedLightIndex].color.x << ", "
-                << lights[selectedLightIndex].color.y << ", "
-                << lights[selectedLightIndex].color.z << "]"
-                << std::endl;
-            return;
-        }
-        default:
-            return;
-        };
-        });
+    WINDOW->registerKeyCallback(keyPressedHandler);
 
     // Create dot cloud + lines vertices + wireframe vertices
-    GLuint dotVAO, dotVBO, lineVAO, lineVBO, wireframeVAO, wireframeVBO;
+    GLuint dotVAO, dotVBO;
+    GLuint lineVAO, lineVBO, lineEBO;
+    GLuint wireframeVAO, wireframeVBO, wireframeEBO;
     float minHeight, maxHeight;
-    int dotAmount = loadDotVertices(image_data, false, &dotVAO, &dotVBO, &maxHeight, &minHeight);
-    loadDotVertices(image_data, true, &lineVAO, &lineVBO, &maxHeight, &minHeight);
-    int wireframeDotAmount = loadWireframeVertices(image_data, &wireframeVAO, &wireframeVBO);
+    std::vector<glm::vec3> vertices = loadVertices(image_data, &maxHeight, &minHeight);
+    int dotAmount = image_data.width * image_data.height;
+    loadDotVertices(vertices, &dotVAO, &dotVBO);
+    loadLinesVertices(image_data.width, image_data.height, vertices, &lineVAO, &lineVBO, &lineEBO);
+    int wireframeVerticesAmount = loadWireframeVertices(image_data.width, image_data.height, vertices, &wireframeVAO, &wireframeVBO, &wireframeEBO);
 
     // Create triangle vertices
-    GLuint triangleVAO, triangleVBO;
-    int triangleVerticesAmount = loadTriangleVertices(image_data, &triangleVAO, &triangleVBO, triangle_heuristics);
+    GLuint triangleVAO, triangleVBO, triangleEBO;
+    int triangleVerticesAmount = loadTriangleVertices(image_data.width, image_data.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO, triangle_heuristics);
     bool heuristics_used = triangle_heuristics;
 
     // Light VAO and VBO
@@ -656,13 +435,13 @@ int main(int argc, char** argv)
 
 
     // Main loop.
-    while (!window.shouldClose()) {
+    while (!WINDOW->shouldClose()) {
         // Update input and UI
-        window.updateInput();
+        WINDOW->updateInput();
         renderGUI();
         
         // Clear the framebuffer to black and depth to maximum value (ranges from [-1.0 to +1.0]).
-        glViewport(0, 0, window.getWindowSize().x, window.getWindowSize().y);
+        glViewport(0, 0, WINDOW->getWindowSize().x, WINDOW->getWindowSize().y);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -670,21 +449,22 @@ int main(int argc, char** argv)
         if (render_height != image_data.render_height || render_size != image_data.render_size) {
             image_data.render_height = render_height;
             image_data.render_size = render_size;
-            dotAmount = loadDotVertices(image_data, false, &dotVAO, &dotVBO, &maxHeight, &minHeight);
-            loadDotVertices(image_data, true, &lineVAO, &lineVBO, &maxHeight, &minHeight);
-            wireframeDotAmount = loadWireframeVertices(image_data, &wireframeVAO, &wireframeVBO);
-            triangleVerticesAmount = loadTriangleVertices(image_data, &triangleVAO, &triangleVBO, triangle_heuristics);
+            vertices = loadVertices(image_data, &maxHeight, &minHeight);
+            loadDotVertices(vertices, &dotVAO, &dotVBO);
+            loadLinesVertices(image_data.width, image_data.height, vertices, &lineVAO, &lineVBO, &lineEBO);
+            int wireframeVerticesAmount = loadWireframeVertices(image_data.width, image_data.height, vertices, &wireframeVAO, &wireframeVBO, &wireframeEBO);
+            int triangleVerticesAmount = loadTriangleVertices(image_data.width, image_data.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO, triangle_heuristics);
             loadQuadVertices(image_data, &quadVAO, &quadVBO, &quadEBO);
         }
 
         // Check if heuristics parameters changed
         if (triangle_heuristics != heuristics_used) {
             heuristics_used = triangle_heuristics;
-            triangleVerticesAmount = loadTriangleVertices(image_data, &triangleVAO, &triangleVBO, triangle_heuristics);
+            int triangleVerticesAmount = loadTriangleVertices(image_data.width, image_data.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO, triangle_heuristics);
         }
 
         // Compute distance to camera
-        const glm::vec3 cameraPos = trackball.position();
+        const glm::vec3 cameraPos = TRACKBALL->position();
         const float maxSize = std::sqrtf(image_data.render_height*image_data.render_height + 
                                         image_data.render_size*image_data.render_size/2.0f);
         float minDistanceToCamera = glm::length(cameraPos) - maxSize;
@@ -695,8 +475,8 @@ int main(int argc, char** argv)
 
         // Set model/view/projection matrix.
         const glm::mat4 model { 1.0f };
-        const glm::mat4 view = trackball.viewMatrix();
-        const glm::mat4 projection = trackball.projectionMatrix();
+        const glm::mat4 view = TRACKBALL->viewMatrix();
+        const glm::mat4 projection = TRACKBALL->projectionMatrix();
         const glm::mat4 mvp = projection * view * model;
 
         // Draw Flat Image
@@ -737,13 +517,13 @@ int main(int argc, char** argv)
             // Render lines
             if (render_lines) {
                 glBindVertexArray(lineVAO);
-                glDrawArrays(GL_LINES, 0, dotAmount*2);
+                glDrawElements(GL_LINES, dotAmount*2, GL_UNSIGNED_INT, 0);
             }
 
             // Render wireframe
             if (render_wireframe) {
                 glBindVertexArray(wireframeVAO);
-                glDrawArrays(GL_LINES, 0, wireframeDotAmount);
+                glDrawElements(GL_LINES, wireframeVerticesAmount, GL_UNSIGNED_INT, 0);
             }
             glBindVertexArray(0);
         }
@@ -751,7 +531,7 @@ int main(int argc, char** argv)
         // Draw triangles
         if (render_triangles) {
             glBindVertexArray(triangleVAO);
-            glDrawArrays(GL_TRIANGLES, 0, triangleVerticesAmount);
+            glDrawElements(GL_TRIANGLES, triangleVerticesAmount, GL_UNSIGNED_INT, 0);
         }
 
         // Draw lights as (square) points. The selected light is bigger
@@ -780,46 +560,25 @@ int main(int argc, char** argv)
         }
 
         // Present result to the screen.
-        window.swapBuffers();
+        WINDOW->swapBuffers();
     }
 
     // Cleanup
     glDeleteBuffers(1, &lightVBO);
     glDeleteBuffers(1, &dotVBO);
-    glDeleteBuffers(1, &quadEBO);
     glDeleteBuffers(1, &quadVBO);
     glDeleteBuffers(1, &wireframeVBO);
+    glDeleteBuffers(1, &triangleVBO);
+    glDeleteBuffers(1, &quadEBO);
+    glDeleteBuffers(1, &lineEBO);
+    glDeleteBuffers(1, &wireframeEBO);
+    glDeleteBuffers(1, &triangleEBO);
     glDeleteVertexArrays(1, &lightVAO);
     glDeleteVertexArrays(1, &dotVAO);
     glDeleteVertexArrays(1, &quadVAO);
     glDeleteVertexArrays(1, &wireframeVAO);
+    glDeleteVertexArrays(1, &triangleVAO);
 
     return 0;
-}
-
-static std::optional<glm::vec3> getWorldPositionOfPixel(const Trackball& trackball, const glm::vec2& pixel)
-{
-    float depth;
-    glReadPixels(static_cast<int>(pixel.x), static_cast<int>(pixel.y), 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
-
-    if (depth == 1.0f) {
-        // This is a work around for a bug in GCC:
-        // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=80635
-        //
-        // This bug will emit a warning about a maybe uninitialized value when writing:
-        // return {};
-        constexpr std::optional<glm::vec3> tmp;
-        return tmp;
-    }
-
-    // Coordinates convert from pixel space to OpenGL screen space (range from -1 to +1)
-    const glm::vec3 win { pixel, depth };
-
-    // View matrix
-    const glm::mat4 view = trackball.viewMatrix();
-    const glm::mat4 projection = trackball.projectionMatrix();
-
-    const glm::vec4 viewport { 0, 0, WIDTH, HEIGHT };
-    return glm::unProject(win, view, projection, viewport);
 }
 
