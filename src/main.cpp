@@ -147,61 +147,22 @@ static int loadWireframeVertices(int width, int height, const std::vector<glm::v
     return indices.size();
 }
 
-static std::vector<unsigned int> computeBestTriangles(bool use_heuristics, const std::vector<glm::vec3>& vertices, int bl, int tl, int br, int tr) {
-    std::vector<unsigned int> indices;
-    indices.reserve(6);
-
-    glm::vec3 bottom_left = vertices[bl];
-    glm::vec3 top_left = vertices[tl];
-    glm::vec3 bottom_right = vertices[br];
-    glm::vec3 top_right = vertices[tl];
-
-    // Case 1 : Diagonal top_left - bottom_right
-    glm::vec3 n1 = glm::normalize(glm::cross(bottom_left - top_left, bottom_left - bottom_right));
-    glm::vec3 n2 = glm::normalize(glm::cross(top_right - bottom_right, top_right - top_left));
-
-    // Case 2 : Diagonal bottom_left - top_right
-    glm::vec3 m1 = glm::normalize(glm::cross(top_left - top_right, top_left - bottom_left));
-    glm::vec3 m2 = glm::normalize(glm::cross(bottom_right - bottom_left, bottom_right - top_right));
-
-
-    if (!use_heuristics || glm::length(n1 - n2) < glm::length(m1 - m2)) { // Case 1 is better or heuristics not used
-        indices.push_back(bl);
-        indices.push_back(tl);
-        indices.push_back(br);
-        indices.push_back(tr);
-        indices.push_back(tl);
-        indices.push_back(br);
-    }
-    else { // Case 2 is better
-        indices.push_back(bl);
-        indices.push_back(tl);
-        indices.push_back(tr);
-        indices.push_back(tr);
-        indices.push_back(bl);
-        indices.push_back(br);
-    }
-    
-    
-    return indices;
-}
-
-static int loadTriangleVertices(int width, int height, const std::vector<glm::vec3>& vertices, GLuint* triangleVAO, GLuint* triangleVBO, GLuint* triangleEBO, bool use_heuristics) {
+static int loadTriangleVertices(int width, int height, const std::vector<glm::vec3>& vertices, GLuint* triangleVAO, GLuint* triangleVBO, GLuint* triangleEBO) {
 
     auto start = std::chrono::high_resolution_clock::now();
     std::vector<unsigned int> indices;
-    indices.reserve(width * height * 6);
+    indices.reserve(width * height * 4);
 
     for (int z = 0; z < height-1; ++z) {
         for (int x = 0; x < width-1; ++x) {
             int bottom_left = z * width + x;
             int top_left = (z+1) * width + x;
+            int top_right = (z + 1) * width + x + 1;
             int bottom_right = z * width + x+1;
-            int top_right = (z+1) * width + x+1;
-            std::vector<unsigned int> triangles = computeBestTriangles(use_heuristics, vertices, bottom_left, top_left, bottom_right, top_right);
-            for (int i = 0; i < 6; i++) {
-                indices.push_back(triangles[i]);
-            }
+            indices.push_back(bottom_left);
+            indices.push_back(top_left);
+            indices.push_back(top_right);
+            indices.push_back(bottom_right);
         }
     }
     clearAndLoadNewVerticesAndEBO(vertices, indices, triangleVAO, triangleVBO, triangleEBO);
@@ -288,6 +249,7 @@ int main(int argc, char** argv)
     WINDOW = &w;
     glEnable(GL_DEPTH);
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_DEBUG_OUTPUT);
 
     // Parse initial scene config TOML
     Trackball t = readInitialConfig(WINDOW, image_data, lights);
@@ -311,8 +273,7 @@ int main(int argc, char** argv)
 
     // Create triangle vertices
     GLuint triangleVAO, triangleVBO, triangleEBO;
-    int triangleVerticesAmount = loadTriangleVertices(image_data.width, image_data.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO, triangle_heuristics);
-    bool heuristics_used = triangle_heuristics;
+    int triangleVerticesAmount = loadTriangleVertices(image_data.width, image_data.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO);
 
     // Light VAO and VBO
     GLuint lightVAO, lightVBO;
@@ -337,6 +298,10 @@ int main(int argc, char** argv)
     const Shader quadShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/quad_vertex.glsl")
                                              .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/quad_frag.glsl")
                                              .build();
+    const Shader triangleShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/triangle_vertex.glsl")
+                                                 .addStage(GL_GEOMETRY_SHADER, RESOURCE_ROOT "shaders/triangle_geometry.glsl")
+                                                 .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/triangle_frag.glsl")
+                                                 .build();
 
 
     // Main loop.
@@ -358,14 +323,8 @@ int main(int argc, char** argv)
             loadDotVertices(vertices, &dotVAO, &dotVBO);
             loadLinesVertices(image_data.width, image_data.height, vertices, &lineVAO, &lineVBO, &lineEBO);
             int wireframeVerticesAmount = loadWireframeVertices(image_data.width, image_data.height, vertices, &wireframeVAO, &wireframeVBO, &wireframeEBO);
-            int triangleVerticesAmount = loadTriangleVertices(image_data.width, image_data.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO, triangle_heuristics);
+            int triangleVerticesAmount = loadTriangleVertices(image_data.width, image_data.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO);
             loadQuadVertices(image_data, &quadVAO, &quadVBO, &quadEBO);
-        }
-
-        // Check if heuristics parameters changed
-        if (triangle_heuristics != heuristics_used) {
-            heuristics_used = triangle_heuristics;
-            int triangleVerticesAmount = loadTriangleVertices(image_data.width, image_data.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO, triangle_heuristics);
         }
 
         // Compute distance to camera
@@ -428,8 +387,14 @@ int main(int argc, char** argv)
 
         // Draw triangles
         if (render_triangles) {
+            triangleShader.bind();
+            glUniform3fv(triangleShader.getUniformLocation("lightDirection"), 1, glm::value_ptr(lights[selectedLightIndex].position));
+            glUniform3fv(triangleShader.getUniformLocation("lightColor"), 1, glm::value_ptr(lights[selectedLightIndex].color));
+            glUniform3fv(triangleShader.getUniformLocation("surfaceColor"), 1, glm::value_ptr(color_1));
+            glUniformMatrix4fv(triangleShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
             glBindVertexArray(triangleVAO);
-            glDrawElements(GL_TRIANGLES, triangleVerticesAmount, GL_UNSIGNED_INT, 0);
+            glDrawElements(GL_LINES_ADJACENCY, triangleVerticesAmount, GL_UNSIGNED_INT, 0);
+            glBindVertexArray(0);
         }
 
         // Draw lights as (square) points. The selected light is bigger

@@ -25,7 +25,6 @@ DotRenderingMode dot_render_mode = DotRenderingMode::FixedColor;
 
 // Triangles
 bool render_triangles = false;
-bool triangle_heuristics = true;
 
 // Lights
 std::vector<Light> lights{};
@@ -239,7 +238,6 @@ static void renderGUI()
     // Triangles Rendering
     ImGui::Text("Triangles");
     ImGui::Checkbox("Show Triangles", &render_triangles);
-    ImGui::Checkbox("Use Heuristics", &triangle_heuristics);
     ImGui::Separator();
 
     //Lights Rendering
