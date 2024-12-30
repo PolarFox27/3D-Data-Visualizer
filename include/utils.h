@@ -32,8 +32,7 @@ DISABLE_WARNINGS_POP()
 // Dot Rendering Mode Enum
 enum class DotRenderingMode {
     FixedColor = 0,
-    HeightGradient = 1,
-    CameraDistanceGradient = 2
+    Gradient = 1
 };
 
 // Pixels and Image Data
@@ -135,7 +134,7 @@ static Trackball readInitialConfig(Window* window, ImageData& image, std::vector
     for (size_t i = 0; i < num_lights; ++i) {
         auto pos = tomlArrayToVec3(config["lights"]["positions"][i].as_array());
         auto color = tomlArrayToVec3(config["lights"]["colors"][i].as_array());
-        lights.emplace_back(Light{ pos, color });
+        lights_list.emplace_back(Light{ pos, color });
     }
 
     // read camera settings from TOML and setup trackball

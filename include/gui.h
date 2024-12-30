@@ -20,6 +20,7 @@ bool render_dots = false;
 bool render_lines = false;
 bool render_wireframe = false;
 float dot_size = 2.0f;
+float max_render_distance = 20.0f;
 DotRenderingMode dot_render_mode = DotRenderingMode::FixedColor;
 
 // Triangles
@@ -224,8 +225,9 @@ static void renderGUI()
     ImGui::Text("Dots");
     ImGui::Checkbox("Show Dots", &render_dots);
     ImGui::InputFloat("Dot Size", &dot_size);
+    ImGui::InputFloat("Max Render Distance", &max_render_distance);
     // Dropdown for dot render style
-    std::array dot_render_mode_names{ "Fixed Color", "Gradient based on Height", "Gradient based on distance to Camera" };
+    std::array dot_render_mode_names{ "Fixed Color", "Gradient" };
     int current_dot_render_mode = static_cast<int>(dot_render_mode);
     ImGui::Combo("Render Mode", &current_dot_render_mode, dot_render_mode_names.data(), (int)dot_render_mode_names.size());
     dot_render_mode = static_cast<DotRenderingMode>(current_dot_render_mode);

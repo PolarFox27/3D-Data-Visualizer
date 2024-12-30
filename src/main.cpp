@@ -294,6 +294,7 @@ int main(int argc, char** argv)
     TRACKBALL = &t;
     render_height = image_data.render_height;
     render_size = image_data.render_size;
+    max_render_distance = render_size;
 
     WINDOW->registerKeyCallback(keyPressedHandler);
 
@@ -369,13 +370,6 @@ int main(int argc, char** argv)
 
         // Compute distance to camera
         const glm::vec3 cameraPos = TRACKBALL->position();
-        const float maxSize = std::sqrtf(image_data.render_height*image_data.render_height + 
-                                        image_data.render_size*image_data.render_size/2.0f);
-        float minDistanceToCamera = glm::length(cameraPos) - maxSize;
-        float maxDistanceToCamera = glm::length(cameraPos) + maxSize;
-        if (minDistanceToCamera < 0.0f) {
-            minDistanceToCamera = 0.0f;
-        }
 
         // Set model/view/projection matrix.
         const glm::mat4 model { 1.0f };
@@ -405,8 +399,8 @@ int main(int argc, char** argv)
         glUniform1iv(dotShader.getUniformLocation("mode"), 1, &mode);
         glUniform1f(dotShader.getUniformLocation("minHeight"), minHeight);
         glUniform1f(dotShader.getUniformLocation("maxHeight"), maxHeight);
-        glUniform1f(dotShader.getUniformLocation("minDistanceToCamera"), minDistanceToCamera);
-        glUniform1f(dotShader.getUniformLocation("maxDistanceToCamera"), maxDistanceToCamera);
+        glUniform1f(dotShader.getUniformLocation("minDistanceToCamera"), 0.0f);
+        glUniform1f(dotShader.getUniformLocation("maxDistanceToCamera"), max_render_distance);
         glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
         glUniform3fv(dotShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(cameraPos));
 
