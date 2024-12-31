@@ -335,6 +335,7 @@ int main(int argc, char** argv)
         const glm::mat4 view = TRACKBALL->viewMatrix();
         const glm::mat4 projection = TRACKBALL->projectionMatrix();
         const glm::mat4 mvp = projection * view * model;
+        const int mode = static_cast<int>(render_mode);
 
         // Draw Flat Image
         if (render_quad) {
@@ -352,7 +353,6 @@ int main(int argc, char** argv)
         
         //Shader and variable setup
         dotShader.bind();
-        const int mode = static_cast<int>(dot_render_mode);
         glUniform3fv(dotShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
         glUniform3fv(dotShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
         glUniform1iv(dotShader.getUniformLocation("mode"), 1, &mode);
@@ -388,7 +388,6 @@ int main(int argc, char** argv)
         // Draw triangles
         if (render_triangles) {
             triangleShader.bind();
-            const int mode = static_cast<int>(dot_render_mode);
             glUniform3fv(triangleShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
             glUniform3fv(triangleShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
             glUniform1iv(triangleShader.getUniformLocation("mode"), 1, &mode);

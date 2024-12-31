@@ -30,7 +30,7 @@ DISABLE_WARNINGS_POP()
 //============================ENUMS AND STRUCTS===============================
 
 // Dot Rendering Mode Enum
-enum class DotRenderingMode {
+enum class RenderingMode {
     FixedColor = 0,
     Gradient = 1
 };

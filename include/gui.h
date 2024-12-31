@@ -21,7 +21,7 @@ bool render_lines = false;
 bool render_wireframe = false;
 float dot_size = 2.0f;
 float max_render_distance = 20.0f;
-DotRenderingMode dot_render_mode = DotRenderingMode::FixedColor;
+RenderingMode render_mode = RenderingMode::FixedColor;
 
 // Triangles
 bool render_triangles = false;
@@ -218,20 +218,24 @@ static void renderGUI()
     ImGui::ColorEdit3("Color 2", &color_2[0]);
     ImGui::InputFloat("Width", &render_size);
     ImGui::InputFloat("Height", &render_height);
+    // Dropdown for render mode
+    std::array render_mode_names{ "Fixed Color", "Height Gradient" };
+    int current_render_mode = static_cast<int>(render_mode);
+    ImGui::Combo("Render Mode", &current_render_mode, render_mode_names.data(), (int)render_mode_names.size());
+    render_mode = static_cast<RenderingMode>(current_render_mode);
     ImGui::Separator();
 
     // Dots Rendering
     ImGui::Text("Dots");
     ImGui::Checkbox("Show Dots", &render_dots);
-    ImGui::InputFloat("Dot Size", &dot_size);
-    ImGui::InputFloat("Max Render Distance", &max_render_distance);
-    // Dropdown for dot render style
-    std::array dot_render_mode_names{ "Fixed Color", "Gradient" };
-    int current_dot_render_mode = static_cast<int>(dot_render_mode);
-    ImGui::Combo("Render Mode", &current_dot_render_mode, dot_render_mode_names.data(), (int)dot_render_mode_names.size());
-    dot_render_mode = static_cast<DotRenderingMode>(current_dot_render_mode);
-    ImGui::Checkbox("Show Lines", &render_lines);
-    ImGui::Checkbox("Show Wireframe", &render_wireframe);
+    if (render_dots) {
+        ImGui::Indent(0.0f);
+        ImGui::InputFloat("Dot Size", &dot_size);
+        ImGui::InputFloat("Max Render Distance", &max_render_distance);
+        ImGui::Checkbox("Show Lines", &render_lines);
+        ImGui::Checkbox("Show Wireframe", &render_wireframe);
+        ImGui::Unindent();
+    }
     ImGui::Separator();
 
 
