@@ -388,9 +388,14 @@ int main(int argc, char** argv)
         // Draw triangles
         if (render_triangles) {
             triangleShader.bind();
+            const int mode = static_cast<int>(dot_render_mode);
+            glUniform3fv(triangleShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
+            glUniform3fv(triangleShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
+            glUniform1iv(triangleShader.getUniformLocation("mode"), 1, &mode);
+            glUniform1f(triangleShader.getUniformLocation("minHeight"), minHeight);
+            glUniform1f(triangleShader.getUniformLocation("maxHeight"), maxHeight);
             glUniform3fv(triangleShader.getUniformLocation("lightDirection"), 1, glm::value_ptr(lights[selectedLightIndex].position));
             glUniform3fv(triangleShader.getUniformLocation("lightColor"), 1, glm::value_ptr(lights[selectedLightIndex].color));
-            glUniform3fv(triangleShader.getUniformLocation("surfaceColor"), 1, glm::value_ptr(color_1));
             glUniformMatrix4fv(triangleShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
             glBindVertexArray(triangleVAO);
             glDrawElements(GL_LINES_ADJACENCY, triangleVerticesAmount, GL_UNSIGNED_INT, 0);

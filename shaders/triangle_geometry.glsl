@@ -2,7 +2,8 @@
 layout(lines_adjacency) in;
 layout(triangle_strip, max_vertices = 6) out;
 
-out vec3 fragNormal;
+out vec3 normal;
+out vec3 pos;
 
 uniform mat4 mvp; // MVP matrix
 
@@ -30,25 +31,25 @@ void main() {
 
     // Choose the diagonal which minimizes the difference between the triangle normals
     if(computeDifference(normal1, normal2) <= computeDifference(normal3, normal4)) {  // Diagonal v0 - v2 is better
-        gl_Position = mvp * vec4(v0, 1.0); fragNormal = normal1; EmitVertex();
-        gl_Position = mvp * vec4(v1, 1.0); fragNormal = normal1; EmitVertex();
-        gl_Position = mvp * vec4(v2, 1.0); fragNormal = normal1; EmitVertex();
+        gl_Position = mvp * vec4(v0, 1.0); normal = normal1; pos = v0; EmitVertex();
+        gl_Position = mvp * vec4(v1, 1.0); normal = normal1; pos = v1; EmitVertex();
+        gl_Position = mvp * vec4(v2, 1.0); normal = normal1; pos = v2; EmitVertex();
         EndPrimitive();
 
-        gl_Position = mvp * vec4(v2, 1.0); fragNormal = normal2; EmitVertex();
-        gl_Position = mvp * vec4(v3, 1.0); fragNormal = normal2; EmitVertex();
-        gl_Position = mvp * vec4(v0, 1.0); fragNormal = normal2; EmitVertex();
+        gl_Position = mvp * vec4(v2, 1.0); normal = normal2; pos = v2; EmitVertex();
+        gl_Position = mvp * vec4(v3, 1.0); normal = normal2; pos = v3; EmitVertex();
+        gl_Position = mvp * vec4(v0, 1.0); normal = normal2; pos = v0; EmitVertex();
         EndPrimitive();
     }
     else {                                                                           // Diagonal v1 - v3 is better
-        gl_Position = mvp * vec4(v0, 1.0); fragNormal = normal3; EmitVertex();
-        gl_Position = mvp * vec4(v1, 1.0); fragNormal = normal3; EmitVertex();
-        gl_Position = mvp * vec4(v3, 1.0); fragNormal = normal3; EmitVertex();
+        gl_Position = mvp * vec4(v0, 1.0); normal = normal3; pos = v0; EmitVertex();
+        gl_Position = mvp * vec4(v1, 1.0); normal = normal3; pos = v1; EmitVertex();
+        gl_Position = mvp * vec4(v3, 1.0); normal = normal3; pos = v3; EmitVertex();
         EndPrimitive();
 
-        gl_Position = mvp * vec4(v2, 1.0); fragNormal = normal4; EmitVertex();
-        gl_Position = mvp * vec4(v3, 1.0); fragNormal = normal4; EmitVertex();
-        gl_Position = mvp * vec4(v1, 1.0); fragNormal = normal4; EmitVertex();
+        gl_Position = mvp * vec4(v2, 1.0); normal = normal4; pos = v2; EmitVertex();
+        gl_Position = mvp * vec4(v3, 1.0); normal = normal4; pos = v3; EmitVertex();
+        gl_Position = mvp * vec4(v1, 1.0); normal = normal4; pos = v1; EmitVertex();
         EndPrimitive();
     }
 }
