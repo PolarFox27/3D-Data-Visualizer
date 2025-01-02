@@ -94,49 +94,47 @@ static glm::vec3 tomlArrayToVec3(const toml::array* array)
 
 
 static std::vector<Pixel> loadPixelsFromImage(const char* filePath, int& width, int& height) {
-    // Load image data with stbi_load_16 for potential 16-bit images
-    int channels;
-    bool is16Bit = false;
-    uint16_t* data16 = stbi_load_16(filePath, &width, &height, &channels, STBI_rgb);
-
-    unsigned char* data8 = nullptr;
-    if (!data16) {
-        // If 16-bit loading fails, fallback to 8-bit loading
-        data8 = stbi_load(filePath, &width, &height, &channels, STBI_rgb);
-        if (!data8) {
-            std::cerr << "Failed to load image: " << filePath << std::endl;
-            return {};
-        }
-    }
-    else {
-        is16Bit = true;
-    }
-
-    // Extract pixels from image data
+    // Reserve memory for the pixel data.
     std::vector<Pixel> pixels;
     pixels.reserve(width * height);
 
-    if (is16Bit) {
-        // Handle 16-bit image data
+    // Try loading the image in 16-bits RGB.
+    int channels;
+    unsigned short* data16 = stbi_load_16(filePath, &width, &height, &channels, STBI_rgb);
+
+    // If the image is correctly loaded, store the 16-bits data in the pixel array.
+    if (data16) {
         for (int i = 0; i < width * height; ++i) {
-            Pixel pixel{ data16[i * 3 + 0], data16[i * 3 + 1], data16[i * 3 + 2] };
-            pixels.push_back(pixel);
-        }
-        stbi_image_free(data16);
-    }
-    else {
-        // Handle 8-bit image data
-        for (int i = 0; i < width * height; ++i) {
-            Pixel pixel{
-                static_cast<uint16_t>(data8[i * 3 + 0] * 257), // Scale 8-bit to 16-bit
-                static_cast<uint16_t>(data8[i * 3 + 1] * 257),
-                static_cast<uint16_t>(data8[i * 3 + 2] * 257)
+            Pixel pixel{ 
+                data16[i * 3 + 0], // R
+                data16[i * 3 + 1], // G
+                data16[i * 3 + 2]  // B
             };
             pixels.push_back(pixel);
         }
-        stbi_image_free(data8);
+        stbi_image_free(data16);
+        return pixels;
     }
 
+    // Try loading the image in 8-bits RGB.
+    unsigned char* data8 = stbi_load(filePath, &width, &height, &channels, STBI_rgb);
+    // If loading failed, print error and return.
+    if (!data8) {
+        std::cerr << "Failed to load image: " << filePath << std::endl;
+        return {};
+    }
+    
+    // If the image is correctly loaded, store the 8-bits data in the pixel array.
+    for (int i = 0; i < width * height; ++i) {
+        // Scale 8-bit to 16-bit
+        Pixel pixel{
+            static_cast<uint16_t>(data8[i * 3 + 0] * 257), // R
+            static_cast<uint16_t>(data8[i * 3 + 1] * 257), // G
+            static_cast<uint16_t>(data8[i * 3 + 2] * 257)  // B
+        };
+        pixels.push_back(pixel);
+    }
+    stbi_image_free(data8);
     return pixels;
 }
 
