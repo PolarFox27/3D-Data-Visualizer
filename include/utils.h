@@ -25,6 +25,7 @@ DISABLE_WARNINGS_POP()
 #include <toml/toml.hpp>
 #include <vector>
 #include <array>
+#include <cstring>
 
 
 //============================ENUMS AND STRUCTS===============================
@@ -37,9 +38,9 @@ enum class RenderingMode {
 
 // Pixels and Image Data
 struct Pixel {
-    unsigned char R = 0;
-    unsigned char G = 0;
-    unsigned char B = 0;
+    unsigned short R = 0;
+    unsigned short G = 0;
+    unsigned short B = 0;
 };
 
 // Image Data
@@ -91,27 +92,54 @@ static glm::vec3 tomlArrayToVec3(const toml::array* array)
     return output;
 }
 
+
 static std::vector<Pixel> loadPixelsFromImage(const char* filePath, int& width, int& height) {
-    // Load image data
+    // Load image data with stbi_load_16 for potential 16-bit images
     int channels;
-    unsigned char* data = stbi_load(filePath, &width, &height, &channels, STBI_rgb);
-    if (!data) {
-        std::cerr << "Failed to load image: " << filePath << std::endl;
-        return {};
+    bool is16Bit = false;
+    uint16_t* data16 = stbi_load_16(filePath, &width, &height, &channels, STBI_rgb);
+
+    unsigned char* data8 = nullptr;
+    if (!data16) {
+        // If 16-bit loading fails, fallback to 8-bit loading
+        data8 = stbi_load(filePath, &width, &height, &channels, STBI_rgb);
+        if (!data8) {
+            std::cerr << "Failed to load image: " << filePath << std::endl;
+            return {};
+        }
+    }
+    else {
+        is16Bit = true;
     }
 
     // Extract pixels from image data
     std::vector<Pixel> pixels;
     pixels.reserve(width * height);
-    for (int i = 0; i < width * height; ++i) {
-        Pixel pixel{ data[i * 3 + 0], data[i * 3 + 1], data[i * 3 + 2] }; // RGB values
-        pixels.push_back(pixel);
+
+    if (is16Bit) {
+        // Handle 16-bit image data
+        for (int i = 0; i < width * height; ++i) {
+            Pixel pixel{ data16[i * 3 + 0], data16[i * 3 + 1], data16[i * 3 + 2] };
+            pixels.push_back(pixel);
+        }
+        stbi_image_free(data16);
+    }
+    else {
+        // Handle 8-bit image data
+        for (int i = 0; i < width * height; ++i) {
+            Pixel pixel{
+                static_cast<uint16_t>(data8[i * 3 + 0] * 257), // Scale 8-bit to 16-bit
+                static_cast<uint16_t>(data8[i * 3 + 1] * 257),
+                static_cast<uint16_t>(data8[i * 3 + 2] * 257)
+            };
+            pixels.push_back(pixel);
+        }
+        stbi_image_free(data8);
     }
 
-    // Free the image data
-    stbi_image_free(data);
     return pixels;
 }
+
 
 static Trackball readInitialConfig(Window* window, ImageData& image, std::vector<Light>& lights_list) {
     const GLubyte* version = glGetString(GL_VERSION);

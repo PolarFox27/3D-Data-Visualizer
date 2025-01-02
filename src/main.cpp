@@ -6,9 +6,9 @@ const int HEIGHT = 800;
 //============================Vertices Functions=============================
 
 static float heightFromPixel(Pixel pixel) {
-    return 0.299f * static_cast<float>(pixel.R) / 255.0f
-         + 0.587f * static_cast<float>(pixel.G) / 255.0f
-         + 0.114f * static_cast<float>(pixel.B) / 255.0f;
+    return 0.299f * static_cast<float>(pixel.R) / 65535.0f
+         + 0.587f * static_cast<float>(pixel.G) / 65535.0f
+         + 0.114f * static_cast<float>(pixel.B) / 65535.0f;
 }
 
 static glm::vec3 getVertexFromPixel(const ImageData& data, int x, int z) {
