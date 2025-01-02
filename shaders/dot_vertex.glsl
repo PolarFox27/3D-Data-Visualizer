@@ -1,13 +1,18 @@
 #version 410
 
-layout(location = 0) in vec3 aPos; // Vertex attribute for position
-uniform mat4 mvp; // MVP matrix
+// Input : position from vertex attributes in VBO
+layout(location = 0) in vec3 aPos;
 
-out vec3 pos; // dot position for the next shader stage
+// Shader Parameter : MVP matrix
+uniform mat4 mvp;
+
+// Output : vertex position for the next shader stage
+out vec3 pos;
 
 
 void main()
 {
+    // Compute vertex position on screen, and pass position to next stage.
     gl_Position = mvp * vec4(aPos, 1.0f);
     pos = aPos;
 }

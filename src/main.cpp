@@ -342,7 +342,7 @@ int main(int argc, char** argv)
             quadShader.bind();
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, quadTexture);
-            glUniform1i(quadShader.getUniformLocation("texture1"), 0); // Pass texture unit 0
+            glUniform1i(quadShader.getUniformLocation("quadTexture"), 0); // Pass texture unit 0
             glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
 
             // Render the quad
