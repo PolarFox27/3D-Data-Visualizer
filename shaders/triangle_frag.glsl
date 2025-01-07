@@ -7,11 +7,15 @@ in vec3 pos;
 // Shader Parameters
 uniform vec3 color1;                // color 1 from the UI
 uniform vec3 color2;                // color 2 from the UI
-uniform vec3 lightDirection;        // light direction
-uniform vec3 lightColor;            // light color
+uniform int lightAmount;            // amount of lights
 uniform int mode;                   // render mode
 uniform float minHeight;            // height of the lowest vertex
 uniform float maxHeight;            // height of the highest vertex
+
+layout(std140) uniform LightData {
+    vec4 lightPos[20];                // Array of max 20 Lights. (vec4 is used for memory alignment)
+    vec4 lightColor[20];
+};
 
 // Output : Fragment Color
 out vec4 outColor;
@@ -86,7 +90,10 @@ void main() {
             break;
     }
 
-    // Compute diffuse lighting and output final color.
-    vec3 finalColor = computeDiffuseLighting(lightColor, surfaceColor, normal, lightDirection);
+    // Compute diffuse lighting for all lights and output final color.
+    vec3 finalColor = vec3(0);
+    for (int i = 0; i < lightAmount; i++){
+        finalColor += computeDiffuseLighting(lightColor[i].xyz, surfaceColor, normal, lightPos[i].xyz);
+    }
     outColor = vec4(finalColor, 1.0);
 }

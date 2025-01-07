@@ -14,6 +14,7 @@ float render_size = 20.0f;
 
 // Quad
 bool render_quad = false;
+float height = 0.0f;
 
 // Dots
 bool render_dots = false;
@@ -211,9 +212,8 @@ static void renderGUI()
     ImGui::Text("Press TAB to show/hide this menu");
     ImGui::Separator();
 
-    // Quads Rendering
+    // Base Parameters
     ImGui::Text("Base Parameters");
-    ImGui::Checkbox("Render Flat Image", &render_quad);
     ImGui::ColorEdit3("Color 1", &color_1[0]);
     ImGui::ColorEdit3("Color 2", &color_2[0]);
     ImGui::InputFloat("Width", &render_size);
@@ -223,6 +223,13 @@ static void renderGUI()
     int current_render_mode = static_cast<int>(render_mode);
     ImGui::Combo("Render Mode", &current_render_mode, render_mode_names.data(), (int)render_mode_names.size());
     render_mode = static_cast<RenderingMode>(current_render_mode);
+    ImGui::Separator();
+
+    // Quad Rendering
+    ImGui::Checkbox("Render Flat Image", &render_quad);
+    if (render_quad) {
+        ImGui::SliderFloat("Height", &height, -render_height, render_height);
+    }
     ImGui::Separator();
 
     // Dots Rendering

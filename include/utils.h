@@ -60,7 +60,11 @@ struct Light {
 
 //===========================================================================
 
+
 // GLOBAL VARIABLES
+const int WIDTH = 1200;
+const int HEIGHT = 800;
+const int MAX_LIGHT_AMOUNT = 20;
 ImageData image_data;
 Window* WINDOW;
 Trackball* TRACKBALL;

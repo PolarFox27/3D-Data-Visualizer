@@ -1,8 +1,5 @@
 #include <gui.h>
 
-const int WIDTH = 1200;
-const int HEIGHT = 800;
-
 //============================Vertices Functions=============================
 
 static float heightFromPixel(Pixel pixel) {
@@ -105,24 +102,6 @@ static void loadDotVertices(const std::vector<glm::vec3>& vertices, GLuint* dotV
     return;
 }
 
-static int loadLinesVertices(int width, int height, const std::vector<glm::vec3>& vertices, GLuint* lineVAO, GLuint* lineVBO, GLuint* lineEBO) {
-    auto start = std::chrono::high_resolution_clock::now();
-    std::vector<unsigned int> indices;
-    int amount = width * height;
-    indices.reserve(amount * 2);
-
-    for (int i = 0; i < amount; i++) {
-
-        indices.push_back(i);
-        indices.push_back(i + amount);
-    }
-
-    clearAndLoadNewVerticesAndEBO(vertices, indices, lineVAO, lineVBO, lineEBO);
-    auto end = std::chrono::high_resolution_clock::now();
-    printElapsedTime(start, end, "Loading of line vertices");
-    return indices.size();
-}
-
 static int loadWireframeVertices(int width, int height, const std::vector<glm::vec3>& vertices, GLuint* wireframeVAO, GLuint* wireframeVBO, GLuint* wireframeEBO) {
     auto start = std::chrono::high_resolution_clock::now();
     std::vector<unsigned int> indices;
@@ -219,6 +198,21 @@ static int loadQuadVertices(const ImageData& data, GLuint* quadVAO, GLuint* quad
     return 6;
 }
 
+static void loadLightsToUBO(const std::vector<Light>& lightArray, GLuint UBO) {
+    // Arrange data in the correct format
+    glBindBuffer(GL_UNIFORM_BUFFER, UBO);
+    glm::vec4 lightData[2 * MAX_LIGHT_AMOUNT]{};
+
+    for (int i = 0; i < lightArray.size(); i++) {
+        lightData[i] = glm::vec4(lightArray[i].position, 1.0f);
+        lightData[MAX_LIGHT_AMOUNT + i] = glm::vec4(lightArray[i].color, 1.0f);
+    }
+
+    // Load data to the UBO
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, 2 * MAX_LIGHT_AMOUNT * sizeof(glm::vec4), lightData);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+}
+
 //===========================================================================
 
 
@@ -234,7 +228,7 @@ static GLuint createTexture(const ImageData& data) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     // Upload texture data
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, data.width, data.height, 0, GL_RGB, GL_UNSIGNED_BYTE, data.pixels.data());
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, data.width, data.height, 0, GL_RGB, GL_UNSIGNED_SHORT, data.pixels.data());
 
     glBindTexture(GL_TEXTURE_2D, 0); // Unbind texture
     return texture;
@@ -260,15 +254,13 @@ int main(int argc, char** argv)
 
     WINDOW->registerKeyCallback(keyPressedHandler);
 
-    // Create dot cloud + lines vertices + wireframe vertices
+    // Create dot cloud + wireframe vertices
     GLuint dotVAO, dotVBO;
-    GLuint lineVAO, lineVBO, lineEBO;
     GLuint wireframeVAO, wireframeVBO, wireframeEBO;
     float minHeight, maxHeight;
     std::vector<glm::vec3> vertices = loadVertices(image_data, &maxHeight, &minHeight);
     int dotAmount = image_data.width * image_data.height;
     loadDotVertices(vertices, &dotVAO, &dotVBO);
-    loadLinesVertices(image_data.width, image_data.height, vertices, &lineVAO, &lineVBO, &lineEBO);
     int wireframeVerticesAmount = loadWireframeVertices(image_data.width, image_data.height, vertices, &wireframeVAO, &wireframeVBO, &wireframeEBO);
 
     // Create triangle vertices
@@ -282,13 +274,25 @@ int main(int argc, char** argv)
     glBindVertexArray(lightVAO);
     glBindBuffer(GL_ARRAY_BUFFER, lightVBO);
 
+    // Light UBO
+    GLuint lightUBO;
+    glGenBuffers(1, &lightUBO);
+    glBindBuffer(GL_UNIFORM_BUFFER, lightUBO);
+
+    // Allocate memory for 20 Lights (with padding so vec4 is used)
+    glBufferData(GL_UNIFORM_BUFFER, 2 * MAX_LIGHT_AMOUNT * sizeof(glm::vec4), nullptr, GL_DYNAMIC_DRAW);
+
+    // Bind the UBO to binding point 0
+    glBindBufferBase(GL_UNIFORM_BUFFER, 0, lightUBO);
+
+
     // Quad Texture and Vertices
     GLuint quadTexture = createTexture(image_data);
     GLuint quadVAO, quadVBO, quadEBO;
     loadQuadVertices(image_data, &quadVAO, &quadVBO, &quadEBO);
 
 
-    // Shader
+    // Shaders
     const Shader lightShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/light_vertex.glsl")
                                               .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/light_frag.glsl")
                                               .build();
@@ -302,6 +306,10 @@ int main(int argc, char** argv)
                                                  .addStage(GL_GEOMETRY_SHADER, RESOURCE_ROOT "shaders/triangle_geometry.glsl")
                                                  .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/triangle_frag.glsl")
                                                  .build();
+    const Shader lineShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/triangle_vertex.glsl")
+                                             .addStage(GL_GEOMETRY_SHADER, RESOURCE_ROOT "shaders/line_geometry.glsl")
+                                             .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/dot_frag.glsl")
+                                             .build();
 
 
     // Main loop.
@@ -321,7 +329,6 @@ int main(int argc, char** argv)
             image_data.render_size = render_size;
             vertices = loadVertices(image_data, &maxHeight, &minHeight);
             loadDotVertices(vertices, &dotVAO, &dotVBO);
-            loadLinesVertices(image_data.width, image_data.height, vertices, &lineVAO, &lineVBO, &lineEBO);
             int wireframeVerticesAmount = loadWireframeVertices(image_data.width, image_data.height, vertices, &wireframeVAO, &wireframeVBO, &wireframeEBO);
             int triangleVerticesAmount = loadTriangleVertices(image_data.width, image_data.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO);
             loadQuadVertices(image_data, &quadVAO, &quadVBO, &quadEBO);
@@ -337,6 +344,8 @@ int main(int argc, char** argv)
         const glm::mat4 mvp = projection * view * model;
         const int mode = static_cast<int>(render_mode);
 
+        loadLightsToUBO(lights, lightUBO);
+
         // Draw Flat Image
         if (render_quad) {
             quadShader.bind();
@@ -344,6 +353,7 @@ int main(int argc, char** argv)
             glBindTexture(GL_TEXTURE_2D, quadTexture);
             glUniform1i(quadShader.getUniformLocation("quadTexture"), 0); // Pass texture unit 0
             glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
+            glUniform1f(quadShader.getUniformLocation("height"), height);
 
             // Render the quad
             glBindVertexArray(quadVAO);
@@ -365,7 +375,7 @@ int main(int argc, char** argv)
 
         // Draw dots
         if (render_dots) {
-            
+
             // Render dots
             glPointSize(dot_size);
             glBindVertexArray(dotVAO);
@@ -373,8 +383,17 @@ int main(int argc, char** argv)
             
             // Render lines
             if (render_lines) {
-                glBindVertexArray(lineVAO);
-                glDrawElements(GL_LINES, dotAmount*2, GL_UNSIGNED_INT, 0);
+                lineShader.bind();
+                glUniform3fv(lineShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
+                glUniform3fv(lineShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
+                glUniform1iv(lineShader.getUniformLocation("mode"), 1, &mode);
+                glUniform1f(lineShader.getUniformLocation("minHeight"), minHeight);
+                glUniform1f(lineShader.getUniformLocation("maxHeight"), maxHeight);
+                glUniform1f(lineShader.getUniformLocation("minDistanceToCamera"), 0.0f);
+                glUniform1f(lineShader.getUniformLocation("maxDistanceToCamera"), max_render_distance);
+                glUniformMatrix4fv(lineShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
+                glUniform3fv(lineShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(cameraPos));
+                glDrawArrays(GL_POINTS, 0, dotAmount);
             }
 
             // Render wireframe
@@ -393,9 +412,11 @@ int main(int argc, char** argv)
             glUniform1iv(triangleShader.getUniformLocation("mode"), 1, &mode);
             glUniform1f(triangleShader.getUniformLocation("minHeight"), minHeight);
             glUniform1f(triangleShader.getUniformLocation("maxHeight"), maxHeight);
-            glUniform3fv(triangleShader.getUniformLocation("lightDirection"), 1, glm::value_ptr(lights[selectedLightIndex].position));
-            glUniform3fv(triangleShader.getUniformLocation("lightColor"), 1, glm::value_ptr(lights[selectedLightIndex].color));
+            glUniform1i(triangleShader.getUniformLocation("lightAmount"), lights.size());
             glUniformMatrix4fv(triangleShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
+
+            triangleShader.bindUniformBlock("LightData", 0, lightUBO);
+
             glBindVertexArray(triangleVAO);
             glDrawElements(GL_LINES_ADJACENCY, triangleVerticesAmount, GL_UNSIGNED_INT, 0);
             glBindVertexArray(0);
@@ -437,7 +458,6 @@ int main(int argc, char** argv)
     glDeleteBuffers(1, &wireframeVBO);
     glDeleteBuffers(1, &triangleVBO);
     glDeleteBuffers(1, &quadEBO);
-    glDeleteBuffers(1, &lineEBO);
     glDeleteBuffers(1, &wireframeEBO);
     glDeleteBuffers(1, &triangleEBO);
     glDeleteVertexArrays(1, &lightVAO);
@@ -445,6 +465,7 @@ int main(int argc, char** argv)
     glDeleteVertexArrays(1, &quadVAO);
     glDeleteVertexArrays(1, &wireframeVAO);
     glDeleteVertexArrays(1, &triangleVAO);
+    glDeleteBuffers(1, &lightUBO);
 
     return 0;
 }
