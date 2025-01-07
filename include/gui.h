@@ -7,6 +7,7 @@
 
 // General
 bool show_imgui = true;
+bool show_raytracing_tab = false;
 glm::vec3 color_1{ 1.0f, 0.0f, 0.0f };
 glm::vec3 color_2{ 0.0f, 1.0f, 0.0f };
 float render_height = 5.0f;
@@ -218,6 +219,7 @@ static void renderGUI()
     ImGui::ColorEdit3("Color 2", &color_2[0]);
     ImGui::InputFloat("Width", &render_size);
     ImGui::InputFloat("Height", &render_height);
+
     // Dropdown for render mode
     std::array render_mode_names{ "Fixed Color", "Height Gradient" };
     int current_render_mode = static_cast<int>(render_mode);
@@ -225,31 +227,50 @@ static void renderGUI()
     render_mode = static_cast<RenderingMode>(current_render_mode);
     ImGui::Separator();
 
-    // Quad Rendering
-    ImGui::Checkbox("Render Flat Image", &render_quad);
-    if (render_quad) {
-        ImGui::SliderFloat("Height", &height, -render_height, render_height);
+    // Tabs
+    if (ImGui::BeginTabBar("Mode")) {
+        // Rasterization Tab
+        if (ImGui::BeginTabItem("Rasterization")) {
+            show_raytracing_tab = false;
+
+            // Quad Rendering
+            ImGui::Checkbox("Render Flat Image", &render_quad);
+            if (render_quad) {
+                ImGui::SliderFloat("Height", &height, -render_height, render_height);
+            }
+            ImGui::Separator();
+
+            // Dots Rendering
+            ImGui::Text("Dots");
+            ImGui::Checkbox("Show Dots", &render_dots);
+            if (render_dots) {
+                ImGui::Indent(0.0f);
+                ImGui::InputFloat("Dot Size", &dot_size);
+                ImGui::InputFloat("Max Render Distance", &max_render_distance);
+                ImGui::Checkbox("Show Lines", &render_lines);
+                ImGui::Checkbox("Show Wireframe", &render_wireframe);
+                ImGui::Unindent();
+            }
+            ImGui::Separator();
+
+
+            // Triangles Rendering
+            ImGui::Text("Triangles");
+            ImGui::Checkbox("Show Triangles", &render_triangles);
+            ImGui::Separator();
+
+            ImGui::EndTabItem();
+        }
+
+
+        // RayTracing Tab
+        if (ImGui::BeginTabItem("Ray Tracing")) {
+            show_raytracing_tab = true;
+            ImGui::EndTabItem();
+        }
+
+        ImGui::EndTabBar();
     }
-    ImGui::Separator();
-
-    // Dots Rendering
-    ImGui::Text("Dots");
-    ImGui::Checkbox("Show Dots", &render_dots);
-    if (render_dots) {
-        ImGui::Indent(0.0f);
-        ImGui::InputFloat("Dot Size", &dot_size);
-        ImGui::InputFloat("Max Render Distance", &max_render_distance);
-        ImGui::Checkbox("Show Lines", &render_lines);
-        ImGui::Checkbox("Show Wireframe", &render_wireframe);
-        ImGui::Unindent();
-    }
-    ImGui::Separator();
-
-
-    // Triangles Rendering
-    ImGui::Text("Triangles");
-    ImGui::Checkbox("Show Triangles", &render_triangles);
-    ImGui::Separator();
 
     //Lights Rendering
     ImGui::Text("Lights");

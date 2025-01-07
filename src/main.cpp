@@ -346,80 +346,86 @@ int main(int argc, char** argv)
 
         loadLightsToUBO(lights, lightUBO);
 
-        // Draw Flat Image
-        if (render_quad) {
-            quadShader.bind();
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, quadTexture);
-            glUniform1i(quadShader.getUniformLocation("quadTexture"), 0); // Pass texture unit 0
+        if (show_raytracing_tab) {
+            // Ray Tracing
+        }
+
+        else {
+            // Draw Flat Image
+            if (render_quad) {
+                quadShader.bind();
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, quadTexture);
+                glUniform1i(quadShader.getUniformLocation("quadTexture"), 0); // Pass texture unit 0
+                glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
+                glUniform1f(quadShader.getUniformLocation("height"), height);
+
+                // Render the quad
+                glBindVertexArray(quadVAO);
+                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+                glBindVertexArray(0);
+            }
+
+            //Shader and variable setup
+            dotShader.bind();
+            glUniform3fv(dotShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
+            glUniform3fv(dotShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
+            glUniform1iv(dotShader.getUniformLocation("mode"), 1, &mode);
+            glUniform1f(dotShader.getUniformLocation("minHeight"), minHeight);
+            glUniform1f(dotShader.getUniformLocation("maxHeight"), maxHeight);
+            glUniform1f(dotShader.getUniformLocation("minDistanceToCamera"), 0.0f);
+            glUniform1f(dotShader.getUniformLocation("maxDistanceToCamera"), max_render_distance);
             glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
-            glUniform1f(quadShader.getUniformLocation("height"), height);
+            glUniform3fv(dotShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(cameraPos));
 
-            // Render the quad
-            glBindVertexArray(quadVAO);
-            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-            glBindVertexArray(0);
-        }
-        
-        //Shader and variable setup
-        dotShader.bind();
-        glUniform3fv(dotShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
-        glUniform3fv(dotShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
-        glUniform1iv(dotShader.getUniformLocation("mode"), 1, &mode);
-        glUniform1f(dotShader.getUniformLocation("minHeight"), minHeight);
-        glUniform1f(dotShader.getUniformLocation("maxHeight"), maxHeight);
-        glUniform1f(dotShader.getUniformLocation("minDistanceToCamera"), 0.0f);
-        glUniform1f(dotShader.getUniformLocation("maxDistanceToCamera"), max_render_distance);
-        glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
-        glUniform3fv(dotShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(cameraPos));
+            // Draw dots
+            if (render_dots) {
 
-        // Draw dots
-        if (render_dots) {
-
-            // Render dots
-            glPointSize(dot_size);
-            glBindVertexArray(dotVAO);
-            glDrawArrays(GL_POINTS, 0, dotAmount);
-            
-            // Render lines
-            if (render_lines) {
-                lineShader.bind();
-                glUniform3fv(lineShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
-                glUniform3fv(lineShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
-                glUniform1iv(lineShader.getUniformLocation("mode"), 1, &mode);
-                glUniform1f(lineShader.getUniformLocation("minHeight"), minHeight);
-                glUniform1f(lineShader.getUniformLocation("maxHeight"), maxHeight);
-                glUniform1f(lineShader.getUniformLocation("minDistanceToCamera"), 0.0f);
-                glUniform1f(lineShader.getUniformLocation("maxDistanceToCamera"), max_render_distance);
-                glUniformMatrix4fv(lineShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
-                glUniform3fv(lineShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(cameraPos));
+                // Render dots
+                glPointSize(dot_size);
+                glBindVertexArray(dotVAO);
                 glDrawArrays(GL_POINTS, 0, dotAmount);
+
+                // Render lines
+                if (render_lines) {
+                    lineShader.bind();
+                    glUniform3fv(lineShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
+                    glUniform3fv(lineShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
+                    glUniform1iv(lineShader.getUniformLocation("mode"), 1, &mode);
+                    glUniform1f(lineShader.getUniformLocation("minHeight"), minHeight);
+                    glUniform1f(lineShader.getUniformLocation("maxHeight"), maxHeight);
+                    glUniform1f(lineShader.getUniformLocation("minDistanceToCamera"), 0.0f);
+                    glUniform1f(lineShader.getUniformLocation("maxDistanceToCamera"), max_render_distance);
+                    glUniformMatrix4fv(lineShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
+                    glUniform3fv(lineShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(cameraPos));
+                    glDrawArrays(GL_POINTS, 0, dotAmount);
+                }
+
+                // Render wireframe
+                if (render_wireframe) {
+                    glBindVertexArray(wireframeVAO);
+                    glDrawElements(GL_LINES, wireframeVerticesAmount, GL_UNSIGNED_INT, 0);
+                }
+                glBindVertexArray(0);
             }
 
-            // Render wireframe
-            if (render_wireframe) {
-                glBindVertexArray(wireframeVAO);
-                glDrawElements(GL_LINES, wireframeVerticesAmount, GL_UNSIGNED_INT, 0);
+            // Draw triangles
+            if (render_triangles) {
+                triangleShader.bind();
+                glUniform3fv(triangleShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
+                glUniform3fv(triangleShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
+                glUniform1iv(triangleShader.getUniformLocation("mode"), 1, &mode);
+                glUniform1f(triangleShader.getUniformLocation("minHeight"), minHeight);
+                glUniform1f(triangleShader.getUniformLocation("maxHeight"), maxHeight);
+                glUniform1i(triangleShader.getUniformLocation("lightAmount"), lights.size());
+                glUniformMatrix4fv(triangleShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
+
+                triangleShader.bindUniformBlock("LightData", 0, lightUBO);
+
+                glBindVertexArray(triangleVAO);
+                glDrawElements(GL_LINES_ADJACENCY, triangleVerticesAmount, GL_UNSIGNED_INT, 0);
+                glBindVertexArray(0);
             }
-            glBindVertexArray(0);
-        }
-
-        // Draw triangles
-        if (render_triangles) {
-            triangleShader.bind();
-            glUniform3fv(triangleShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
-            glUniform3fv(triangleShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
-            glUniform1iv(triangleShader.getUniformLocation("mode"), 1, &mode);
-            glUniform1f(triangleShader.getUniformLocation("minHeight"), minHeight);
-            glUniform1f(triangleShader.getUniformLocation("maxHeight"), maxHeight);
-            glUniform1i(triangleShader.getUniformLocation("lightAmount"), lights.size());
-            glUniformMatrix4fv(triangleShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
-
-            triangleShader.bindUniformBlock("LightData", 0, lightUBO);
-
-            glBindVertexArray(triangleVAO);
-            glDrawElements(GL_LINES_ADJACENCY, triangleVerticesAmount, GL_UNSIGNED_INT, 0);
-            glBindVertexArray(0);
         }
 
         // Draw lights as (square) points. The selected light is bigger

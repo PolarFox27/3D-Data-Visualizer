@@ -65,6 +65,14 @@ vec3 hsvToRGB(vec3 hsvColor) {
     return hsvColor.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), hsvColor.y);
 }
 
+// Compute the color based on the height by creating a Hue gradient between the colors.
+vec3 computeHeightGradient(float height, float minimum, float maximum, vec3 downColor, vec3 upColor){
+    float alpha1 = (height - minimum)/(maximum - minimum);
+    vec3 hsvColor1 = rgbToHSV(downColor);
+    vec3 hsvColor2 = rgbToHSV(upColor);
+    return hsvToRGB(vec3(mix(hsvColor1.x, hsvColor2.x, alpha1), hsvColor1.y, hsvColor1.z));
+}
+
 //********************************************************
 
 
@@ -74,15 +82,9 @@ void main() {
     switch(mode){
 
         case 1: // Mode 1 : Hue gradient based on height and darkening based on distance to camera.
-            // Compute hue gradient alpha parameter based on the fragment height.
-            float alpha1 = (pos.y - minHeight)/(maxHeight - minHeight);
-
-            // Convert color 1 and 2 to HSV for the hue gradient
-            vec3 hsvColor1 = rgbToHSV(color1);
-            vec3 hsvColor2 = rgbToHSV(color2);
-
-            // Get RGB color from hue gradient, keeping S and V components constant.
-            vec3 intermediateColor = hsvToRGB(vec3(mix(hsvColor1.x, hsvColor2.x, alpha1), hsvColor1.y, hsvColor1.z));
+            
+            // Intermediate color computed with the height gradient
+            vec3 intermediateColor = computeHeightGradient(pos.y, minHeight, maxHeight, color1, color2);
 
             // Compute darkening gradient alpha parameter based on the fragment distance to camera.
             float distanceToCamera = clamp(distance(cameraPos, pos), minDistanceToCamera, maxDistanceToCamera);
