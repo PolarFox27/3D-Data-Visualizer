@@ -8,7 +8,6 @@ layout(triangle_strip, max_vertices = 6) out;
 uniform mat4 mvp;
 
 // Output: vertex position and normal.
-out vec3 normal;
 out vec3 pos;
 
 
@@ -44,15 +43,15 @@ void main() {
         vec3 normal2 = computeNormal(v2, v3, v0);
         
         // Create triangle 1 on screen
-        gl_Position = mvp * vec4(v0, 1.0); normal = normal1; pos = v0; EmitVertex();
-        gl_Position = mvp * vec4(v1, 1.0); normal = normal1; pos = v1; EmitVertex();
-        gl_Position = mvp * vec4(v2, 1.0); normal = normal1; pos = v2; EmitVertex();
+        gl_Position = mvp * vec4(v0, 1.0); pos = v0; EmitVertex();
+        gl_Position = mvp * vec4(v1, 1.0); pos = v1; EmitVertex();
+        gl_Position = mvp * vec4(v2, 1.0); pos = v2; EmitVertex();
         EndPrimitive();
 
         // Create triangle 2 on screen
-        gl_Position = mvp * vec4(v2, 1.0); normal = normal2; pos = v2; EmitVertex();
-        gl_Position = mvp * vec4(v3, 1.0); normal = normal2; pos = v3; EmitVertex();
-        gl_Position = mvp * vec4(v0, 1.0); normal = normal2; pos = v0; EmitVertex();
+        gl_Position = mvp * vec4(v2, 1.0); pos = v2; EmitVertex();
+        gl_Position = mvp * vec4(v3, 1.0); pos = v3; EmitVertex();
+        gl_Position = mvp * vec4(v0, 1.0); pos = v0; EmitVertex();
         EndPrimitive();
     }
     else {                                                                           // Diagonal v1 - v3 is better
@@ -62,15 +61,15 @@ void main() {
         vec3 normal4 = computeNormal(v2, v3, v1);
 
         // Create triangle 1 on screen
-        gl_Position = mvp * vec4(v0, 1.0); normal = normal3; pos = v0; EmitVertex();
-        gl_Position = mvp * vec4(v1, 1.0); normal = normal3; pos = v1; EmitVertex();
-        gl_Position = mvp * vec4(v3, 1.0); normal = normal3; pos = v3; EmitVertex();
+        gl_Position = mvp * vec4(v0, 1.0); pos = v0; EmitVertex();
+        gl_Position = mvp * vec4(v1, 1.0); pos = v1; EmitVertex();
+        gl_Position = mvp * vec4(v3, 1.0); pos = v3; EmitVertex();
         EndPrimitive();
 
         // Create triangle 2 on screen
-        gl_Position = mvp * vec4(v2, 1.0); normal = normal4; pos = v2; EmitVertex();
-        gl_Position = mvp * vec4(v3, 1.0); normal = normal4; pos = v3; EmitVertex();
-        gl_Position = mvp * vec4(v1, 1.0); normal = normal4; pos = v1; EmitVertex();
+        gl_Position = mvp * vec4(v2, 1.0); pos = v2; EmitVertex();
+        gl_Position = mvp * vec4(v3, 1.0); pos = v3; EmitVertex();
+        gl_Position = mvp * vec4(v1, 1.0); pos = v1; EmitVertex();
         EndPrimitive();
     }
 }

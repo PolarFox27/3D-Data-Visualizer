@@ -1,7 +1,6 @@
 #version 410 core
 
 // Inputs : vertex position and normal (used for diffuse lighting)
-in vec3 normal;
 in vec3 pos;
 
 // Shader Parameters
@@ -11,6 +10,8 @@ uniform int lightAmount;            // amount of lights
 uniform int mode;                   // render mode
 uniform float minHeight;            // height of the lowest vertex
 uniform float maxHeight;            // height of the highest vertex
+uniform sampler2D normalMap;        // normal map texture
+uniform float renderSize;           // render size to compute normal from position
 
 layout(std140) uniform LightData {
     vec4 lightPos[20];                // Array of max 20 Lights. (vec4 is used for memory alignment)
@@ -72,7 +73,9 @@ vec3 computeHeightGradient(float height, float minimum, float maximum, vec3 down
 }
 
 // Compute diffuse lighting
-vec3 computeDiffuseLighting(vec3 Id, vec3 Kd, vec3 normal, vec3 light) {
+vec3 computeDiffuseLighting(vec3 Id, vec3 Kd, vec3 position, vec3 light) {
+    vec2 texCoord = vec2(position.x/renderSize + 0.5, position.z/renderSize + 0.5);
+    vec3 normal = texture(normalMap, texCoord).xyz;
     float intensity = max(dot(normalize(normal), normalize(light)), 0.0);
     return Id * Kd * intensity;
 }
@@ -98,7 +101,7 @@ void main() {
     // Compute diffuse lighting for all lights and output final color.
     vec3 finalColor = vec3(0);
     for (int i = 0; i < lightAmount; i++){
-        finalColor += computeDiffuseLighting(lightColor[i].xyz, surfaceColor, normal, lightPos[i].xyz);
+        finalColor += computeDiffuseLighting(lightColor[i].xyz, surfaceColor, pos, lightPos[i].xyz);
     }
     outColor = vec4(finalColor, 1.0);
 }

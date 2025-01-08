@@ -66,7 +66,7 @@ static void clearAndLoadNewVerticesAndEBO(const std::vector<glm::vec3>& vertices
 }
 
 
-static std::vector<glm::vec3> loadVertices(ImageData& data, float* maxHeight, float* minHeight) {
+static std::vector<glm::vec3> loadVertices(const ImageData& data, float* maxHeight, float* minHeight) {
     auto start = std::chrono::high_resolution_clock::now();
     std::vector<glm::vec3> vertices;
     vertices.reserve(data.width * data.height * 2);
@@ -92,6 +92,27 @@ static std::vector<glm::vec3> loadVertices(ImageData& data, float* maxHeight, fl
     auto end = std::chrono::high_resolution_clock::now();
     printElapsedTime(start, end, "Creation of data points");
     return vertices;
+}
+
+static std::vector<glm::vec3> computeNormalMap(const ImageData& data, const std::vector<glm::vec3>& vertices) {
+    auto start = std::chrono::high_resolution_clock::now();
+    std::vector<glm::vec3> normalMap;
+    normalMap.reserve(data.width * data.height);
+    for (int z = 0; z < data.height; ++z) {
+        for (int x = 0; x < data.width; ++x) {
+            const glm::vec3 x1 = x > 0 ? getVertexFromPixel(data, x - 1, z) : getVertexFromPixel(data, x, z);
+            const glm::vec3 x2 = (x+1) < data.width ? getVertexFromPixel(data, x + 1, z) : getVertexFromPixel(data, x, z);
+            const glm::vec3 z1 = z > 0 ? getVertexFromPixel(data, x, z - 1) : getVertexFromPixel(data, x, z);
+            const glm::vec3 z2 = (z + 1) < data.height ? getVertexFromPixel(data, x, z + 1) : getVertexFromPixel(data, x, z);
+            
+            float xDerivative = (x2.y - x1.y) / (x2.x - x1.x);
+            float zDerivative = (z2.y - z1.y) / (z2.z - z1.z);
+            normalMap.push_back(glm::normalize(glm::vec3(-xDerivative, 1, -zDerivative)));
+        }
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    printElapsedTime(start, end, "Creation of normal map");
+    return normalMap;
 }
 
 static void loadDotVertices(const std::vector<glm::vec3>& vertices, GLuint* dotVAO, GLuint* dotVBO) {
@@ -234,6 +255,24 @@ static GLuint createTexture(const ImageData& data) {
     return texture;
 }
 
+static GLuint createNormalTexture(const ImageData& data, const std::vector<glm::vec3>& normalMap) {
+    GLuint texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    // Set texture parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Upload texture data
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, data.width, data.height, 0, GL_RGB, GL_FLOAT, normalMap.data());
+
+    glBindTexture(GL_TEXTURE_2D, 0); // Unbind texture
+    return texture;
+}
+
 
 // Program entry point. Everything starts here.
 int main(int argc, char** argv)
@@ -259,6 +298,8 @@ int main(int argc, char** argv)
     GLuint wireframeVAO, wireframeVBO, wireframeEBO;
     float minHeight, maxHeight;
     std::vector<glm::vec3> vertices = loadVertices(image_data, &maxHeight, &minHeight);
+    std::vector<glm::vec3> normals = computeNormalMap(image_data, vertices);
+    GLuint normalMapTexture = createNormalTexture(image_data, normals);
     int dotAmount = image_data.width * image_data.height;
     loadDotVertices(vertices, &dotVAO, &dotVBO);
     int wireframeVerticesAmount = loadWireframeVertices(image_data.width, image_data.height, vertices, &wireframeVAO, &wireframeVBO, &wireframeEBO);
@@ -328,6 +369,8 @@ int main(int argc, char** argv)
             image_data.render_height = render_height;
             image_data.render_size = render_size;
             vertices = loadVertices(image_data, &maxHeight, &minHeight);
+            normals = computeNormalMap(image_data, vertices);
+            normalMapTexture = createNormalTexture(image_data, normals);
             loadDotVertices(vertices, &dotVAO, &dotVBO);
             int wireframeVerticesAmount = loadWireframeVertices(image_data.width, image_data.height, vertices, &wireframeVAO, &wireframeVBO, &wireframeEBO);
             int triangleVerticesAmount = loadTriangleVertices(image_data.width, image_data.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO);
@@ -412,6 +455,10 @@ int main(int argc, char** argv)
             // Draw triangles
             if (render_triangles) {
                 triangleShader.bind();
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, normalMapTexture);
+                glUniform1i(triangleShader.getUniformLocation("normalMap"), 0); // Pass texture unit 0
+                glUniform1f(triangleShader.getUniformLocation("renderSize"), image_data.render_size);
                 glUniform3fv(triangleShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
                 glUniform3fv(triangleShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
                 glUniform1iv(triangleShader.getUniformLocation("mode"), 1, &mode);
