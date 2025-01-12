@@ -16,6 +16,11 @@ static glm::vec3 getVertexFromPixel(const ImageData& data, int x, int z) {
     return glm::vec3(xPos, y, zPos);
 }
 
+static void computeAABB(const ImageData& data, float minHeight, float maxHeight, glm::vec3& aabbMin, glm::vec3& aabbMax) {
+    aabbMin = glm::vec3(-data.render_size/2.0f, minHeight, -data.render_size / 2.0f);
+    aabbMax = glm::vec3(data.render_size / 2.0f, maxHeight, data.render_size / 2.0f);
+}
+
 static void clearAndLoadNewVertices(const std::vector<glm::vec3>& vertices, GLuint* VAO, GLuint* VBO) {
     // Clean previous VAO and VBO
     glDeleteVertexArrays(1, VAO);
@@ -219,6 +224,47 @@ static int loadQuadVertices(const ImageData& data, GLuint* quadVAO, GLuint* quad
     return 6;
 }
 
+static void loadRaytracingVertices(GLuint& raytracingVAO, GLuint& raytracingVBO, GLuint& raytracingEBO) {
+    float quadVertices[] = {
+        // Positions       // Texture Coords
+        -1.0f, -1.0f, 0.0f,  0.0f, 0.0f,  // Bottom-left
+         1.0f, -1.0f, 0.0f,  1.0f, 0.0f,  // Bottom-right
+         1.0f,  1.0f, 0.0f,  1.0f, 1.0f,  // Top-right
+        -1.0f,  1.0f, 0.0f,  0.0f, 1.0f   // Top-left
+    };
+
+    unsigned int indices[] = {
+        0, 1, 2,  // First triangle
+        2, 3, 0   // Second triangle
+    };
+    
+    glGenVertexArrays(1, &raytracingVAO);
+    glGenBuffers(1, &raytracingVBO);
+    glGenBuffers(1, &raytracingEBO);
+
+    glBindVertexArray(raytracingVAO);
+
+    // Set up VBO
+    glBindBuffer(GL_ARRAY_BUFFER, raytracingVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+
+    // Set up EBO
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, raytracingEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+    // Position attribute
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Texture coordinate attribute
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    // Unbind
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
 static void loadLightsToUBO(const std::vector<Light>& lightArray, GLuint UBO) {
     // Arrange data in the correct format
     glBindBuffer(GL_UNIFORM_BUFFER, UBO);
@@ -332,6 +378,12 @@ int main(int argc, char** argv)
     GLuint quadVAO, quadVBO, quadEBO;
     loadQuadVertices(image_data, &quadVAO, &quadVBO, &quadEBO);
 
+    // RayTracing
+    GLuint raytracingVAO, raytracingVBO, raytracingEBO;
+    loadRaytracingVertices(raytracingVAO, raytracingVBO, raytracingEBO);
+    glm::vec3 aabbMin, aabbMax;
+    computeAABB(image_data, minHeight, maxHeight, aabbMin, aabbMax);
+
 
     // Shaders
     const Shader lightShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/light_vertex.glsl")
@@ -351,6 +403,9 @@ int main(int argc, char** argv)
                                              .addStage(GL_GEOMETRY_SHADER, RESOURCE_ROOT "shaders/line_geometry.glsl")
                                              .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/dot_frag.glsl")
                                              .build();
+    const Shader raytracingShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/raytracing_vertex.glsl")
+                                                   .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/raytracing_frag.glsl")
+                                                   .build();
 
 
     // Main loop.
@@ -375,6 +430,7 @@ int main(int argc, char** argv)
             int wireframeVerticesAmount = loadWireframeVertices(image_data.width, image_data.height, vertices, &wireframeVAO, &wireframeVBO, &wireframeEBO);
             int triangleVerticesAmount = loadTriangleVertices(image_data.width, image_data.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO);
             loadQuadVertices(image_data, &quadVAO, &quadVBO, &quadEBO);
+            computeAABB(image_data, minHeight, maxHeight, aabbMin, aabbMax);
         }
 
         // Compute distance to camera
@@ -389,8 +445,26 @@ int main(int argc, char** argv)
 
         loadLightsToUBO(lights, lightUBO);
 
+        // Ray Tracing
         if (show_raytracing_tab) {
-            // Ray Tracing
+            if (enable_ray_tracing) {
+                raytracingShader.bind();
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, quadTexture);
+                glUniform1i(raytracingShader.getUniformLocation("heightmap"), 0); // Pass texture unit 0
+                glUniformMatrix4fv(raytracingShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
+                glUniform3fv(raytracingShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
+                glUniform3fv(raytracingShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
+                glUniform1iv(raytracingShader.getUniformLocation("maxSteps"), 1, &ray_tracing_steps);
+                glUniform3fv(raytracingShader.getUniformLocation("aabbMin"), 1, glm::value_ptr(aabbMin));
+                glUniform3fv(raytracingShader.getUniformLocation("aabbMax"), 1, glm::value_ptr(aabbMax));
+                glUniform1f(raytracingShader.getUniformLocation("renderHeight"), image_data.render_height);
+
+                // Render
+                glBindVertexArray(raytracingVAO);
+                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+                glBindVertexArray(0);
+            }
         }
 
         else {
@@ -510,14 +584,17 @@ int main(int argc, char** argv)
     glDeleteBuffers(1, &quadVBO);
     glDeleteBuffers(1, &wireframeVBO);
     glDeleteBuffers(1, &triangleVBO);
+    glDeleteBuffers(1, &raytracingVBO);
     glDeleteBuffers(1, &quadEBO);
     glDeleteBuffers(1, &wireframeEBO);
     glDeleteBuffers(1, &triangleEBO);
+    glDeleteBuffers(1, &raytracingEBO);
     glDeleteVertexArrays(1, &lightVAO);
     glDeleteVertexArrays(1, &dotVAO);
     glDeleteVertexArrays(1, &quadVAO);
     glDeleteVertexArrays(1, &wireframeVAO);
     glDeleteVertexArrays(1, &triangleVAO);
+    glDeleteVertexArrays(1, &raytracingVAO);
     glDeleteBuffers(1, &lightUBO);
 
     return 0;

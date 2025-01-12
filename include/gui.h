@@ -12,6 +12,7 @@ glm::vec3 color_1{ 1.0f, 0.0f, 0.0f };
 glm::vec3 color_2{ 0.0f, 1.0f, 0.0f };
 float render_height = 5.0f;
 float render_size = 20.0f;
+bool render_aabb = false;
 
 // Quad
 bool render_quad = false;
@@ -31,6 +32,10 @@ bool render_triangles = false;
 // Lights
 std::vector<Light> lights{};
 size_t selectedLightIndex = 0;
+
+// Ray Tracing
+bool enable_ray_tracing = false;
+int ray_tracing_steps = 100;
 
 //===========================================================================
 
@@ -219,6 +224,7 @@ static void renderGUI()
     ImGui::ColorEdit3("Color 2", &color_2[0]);
     ImGui::InputFloat("Width", &render_size);
     ImGui::InputFloat("Height", &render_height);
+    ImGui::Checkbox("Show AABB", &render_aabb);
 
     // Dropdown for render mode
     std::array render_mode_names{ "Fixed Color", "Height Gradient" };
@@ -266,6 +272,11 @@ static void renderGUI()
         // RayTracing Tab
         if (ImGui::BeginTabItem("Ray Tracing")) {
             show_raytracing_tab = true;
+            ImGui::Checkbox("Ray Tracing", &enable_ray_tracing);
+            if (enable_ray_tracing) {
+                ImGui::DragInt("Steps", &ray_tracing_steps, 0.5f, 0, 1000);
+            }
+            ImGui::Separator();
             ImGui::EndTabItem();
         }
 
