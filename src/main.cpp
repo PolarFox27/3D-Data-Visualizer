@@ -451,7 +451,10 @@ int main(int argc, char** argv)
                 raytracingShader.bind();
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, quadTexture);
-                glUniform1i(raytracingShader.getUniformLocation("heightmap"), 0); // Pass texture unit 0
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, normalMapTexture);
+                glUniform1i(raytracingShader.getUniformLocation("heightMap"), 0); // Pass texture unit 0
+                glUniform1i(raytracingShader.getUniformLocation("normalMap"), 1); // Pass texture unit 1
                 glUniformMatrix4fv(raytracingShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
                 glUniform3fv(raytracingShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
                 glUniform3fv(raytracingShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
@@ -459,6 +462,9 @@ int main(int argc, char** argv)
                 glUniform3fv(raytracingShader.getUniformLocation("aabbMin"), 1, glm::value_ptr(aabbMin));
                 glUniform3fv(raytracingShader.getUniformLocation("aabbMax"), 1, glm::value_ptr(aabbMax));
                 glUniform1f(raytracingShader.getUniformLocation("renderHeight"), image_data.render_height);
+                glUniform1i(raytracingShader.getUniformLocation("lightAmount"), lights.size());
+                glUniform1iv(raytracingShader.getUniformLocation("mode"), 1, &mode);
+                raytracingShader.bindUniformBlock("LightData", 0, lightUBO);
 
                 // Render
                 glBindVertexArray(raytracingVAO);

@@ -1,6 +1,6 @@
 #version 410 core
 
-// Inputs : vertex position and normal (used for diffuse lighting)
+// Inputs : vertex position
 in vec3 pos;
 
 // Shader Parameters

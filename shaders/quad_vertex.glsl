@@ -8,12 +8,12 @@ layout (location = 1) in vec2 aTexCoord;
 uniform mat4 mvp;
 uniform float height;
 
-// Output : texture coordinate for the next shader stage
+// Output : texture coordinates for the next shader stage
 out vec2 TexCoord;
 
 
 void main() {
-    // Compute vertex position on screen, and pass texture coordinate to next stage.
+    // Compute vertex position on screen, and pass texture coordinates to next stage.
     gl_Position = mvp * vec4(aPos + vec3(0, height, 0), 1.0);
     TexCoord = aTexCoord;
 }
