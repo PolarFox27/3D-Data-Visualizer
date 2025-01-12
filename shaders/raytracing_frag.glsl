@@ -47,8 +47,8 @@ bool intersectAABB(vec3 origin, vec3 dir, vec3 boxMin, vec3 boxMax, out float tN
 float getHeight(vec2 uv) {
     vec4 color = texture(heightmap, uv);
     float grayscale = 0.299f * color.r
-         + 0.587f * color.g
-         + 0.114f * color.b;
+                    + 0.587f * color.g
+                    + 0.114f * color.b;
     return grayscale * renderHeight;
 }
 
@@ -115,7 +115,7 @@ float getTerrainHeightAtPos(vec3 pos){
 // Ray tracing function
 void main() {
     // Calculate ray origin and direction in world space
-    vec4 ndc = vec4(TexCoord * -2.0 + 1.0, -1.0, 1.0);
+    vec4 ndc = vec4(TexCoord * 2.0 - 1.0, 1.0, 1.0);
     vec4 rayClip = inverse(mvp) * ndc;
     rayClip = rayClip / rayClip.w;
 
@@ -140,7 +140,7 @@ void main() {
     
 
     // March along the ray through the AABB
-    for (int i = 1; i < maxSteps; i++) {
+    for (int i = 1; i < maxSteps + 1; i++) {
         float t = tNear + stepSize * float(i);
         vec3 pos = cameraPos + t * rayDir;
         float height = getTerrainHeightAtPos(pos);

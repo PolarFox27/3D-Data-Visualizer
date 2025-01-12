@@ -183,8 +183,15 @@ static Trackball readInitialConfig(Window* window, ImageData& image, std::vector
     int image_width, image_height;
     const std::vector<Pixel> pixels = loadPixelsFromImage(data_path.c_str(), image_width, image_height);
     std::cout << "done." << std::endl;
-    std::cout << "Loaded image " << data_path.c_str() << " with dimensions " << image_width << "x" << image_height << std::endl;
-    image = { pixels, image_width, image_height, render_size, render_height };
+    if (image_width != image_height) {
+        std::cout << "ERROR: image must have be a square!" << std::endl << "  => Basic Image is loaded instead." << std::endl;
+        const std::vector<Pixel> basicPixels = { Pixel(0, 0, 0), Pixel(0, 0, 0), Pixel(65365, 65365, 65365), Pixel(65365, 65365, 65365) };
+        image = { basicPixels, 2, 2, render_size, render_height };
+    }
+    else {
+        std::cout << "Loaded image " << data_path.c_str() << " with dimensions " << image_width << "x" << image_height << std::endl;
+        image = { pixels, image_width, image_height, render_size, render_height };
+    }
 
     return trackball;
 }

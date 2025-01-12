@@ -12,7 +12,6 @@ glm::vec3 color_1{ 1.0f, 0.0f, 0.0f };
 glm::vec3 color_2{ 0.0f, 1.0f, 0.0f };
 float render_height = 5.0f;
 float render_size = 20.0f;
-bool render_aabb = false;
 
 // Quad
 bool render_quad = false;
@@ -224,7 +223,6 @@ static void renderGUI()
     ImGui::ColorEdit3("Color 2", &color_2[0]);
     ImGui::InputFloat("Width", &render_size);
     ImGui::InputFloat("Height", &render_height);
-    ImGui::Checkbox("Show AABB", &render_aabb);
 
     // Dropdown for render mode
     std::array render_mode_names{ "Fixed Color", "Height Gradient" };
