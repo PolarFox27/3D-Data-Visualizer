@@ -15,6 +15,7 @@ uniform vec3 color2;                // color 2 from the UI
 uniform int lightAmount;            // amount of lights
 uniform int mode;                   // render mode
 uniform float renderHeight;         // the maximum render height for a pixel
+uniform bool binarySearch;          // whether to use binary search
 
 layout(std140) uniform LightData {
     vec4 lightPos[20];                // Array of max 20 Lights. (vec4 is used for memory alignment)
@@ -180,6 +181,50 @@ vec3 computeColorAtPos(vec3 pos){
 //********************************************************************
 
 
+vec3 rayBinarySearch(vec3 pos1, vec3 pos2, bool isUnder){
+    for(int i = 0; i < 20; i++){
+        vec3 middle = (pos2 + pos1)/2;
+        float height = getTerrainHeightAtPos(middle);
+        if ((middle.y <= height && !isUnder) || (middle.y >= height && isUnder)){
+            pos2 = middle;
+        }
+        else{
+            pos1 = middle;
+        }
+    }
+    return pos1;
+}
+
+
+vec3 rayMarching(vec3 origin, vec3 direction, float tNear, float tFar, out bool hit) {
+    // Compute step size
+    float stepSize = (tFar - tNear) / float(maxSteps);
+
+    // Check if ray arrives from above or below terrain
+    vec3 firstPos = origin + tNear*direction;
+    float firstHeight = getTerrainHeightAtPos(firstPos);
+    bool isUnder = firstPos.y < firstHeight;
+    
+
+    // March along the ray through the AABB
+    for (int i = 1; i < maxSteps + 1; i++) {
+        float t = tNear + stepSize * float(i);
+        vec3 pos = origin + t * direction;
+        float height = getTerrainHeightAtPos(pos);
+
+        if ((pos.y <= height && !isUnder) || (pos.y >= height && isUnder)) {
+            // If the ray crosses the terrain surface, output the color
+            hit = true;
+            if(binarySearch){
+                return rayBinarySearch(pos - stepSize*direction, pos, isUnder);
+            }
+            return pos;
+        }
+    }
+    hit = false;
+    return vec3(0);
+}
+
 
 void main() {
     // Create ray for ray tracing
@@ -193,26 +238,12 @@ void main() {
         return;
     }
 
-    // Compute step size
-    float stepSize = (tFar - tNear) / float(maxSteps);
+    bool hit;
+    vec3 pos = rayMarching(rayOrigin, rayDirection, tNear, tFar, hit);
 
-    // Check if ray arrives from above or below terrain
-    vec3 firstPos = rayOrigin + tNear*rayDirection;
-    float firstHeight = getTerrainHeightAtPos(firstPos);
-    bool isUnder = firstPos.y < firstHeight;
-    
-
-    // March along the ray through the AABB
-    for (int i = 1; i < maxSteps + 1; i++) {
-        float t = tNear + stepSize * float(i);
-        vec3 pos = rayOrigin + t * rayDirection;
-        float height = getTerrainHeightAtPos(pos);
-
-        if ((pos.y <= height && !isUnder) || (pos.y >= height && isUnder)) {
-            // If the ray crosses the terrain surface, output the color
-            FragColor = vec4(computeColorAtPos(pos), 1.0);
-            return;
-        }
+    if(hit){
+        FragColor = vec4(computeColorAtPos(pos), 1.0f);
+        return;
     }
 
     // No hit -> no color

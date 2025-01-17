@@ -464,6 +464,7 @@ int main(int argc, char** argv)
                 glUniform1f(raytracingShader.getUniformLocation("renderHeight"), image_data.render_height);
                 glUniform1i(raytracingShader.getUniformLocation("lightAmount"), lights.size());
                 glUniform1iv(raytracingShader.getUniformLocation("mode"), 1, &mode);
+                glUniform1i(raytracingShader.getUniformLocation("binarySearch"), use_binary_search);
                 raytracingShader.bindUniformBlock("LightData", 0, lightUBO);
 
                 // Render

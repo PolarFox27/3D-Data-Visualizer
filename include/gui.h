@@ -35,6 +35,7 @@ size_t selectedLightIndex = 0;
 // Ray Tracing
 bool enable_ray_tracing = false;
 int ray_tracing_steps = 100;
+bool use_binary_search = false;
 
 //===========================================================================
 
@@ -273,6 +274,7 @@ static void renderGUI()
             ImGui::Checkbox("Ray Tracing", &enable_ray_tracing);
             if (enable_ray_tracing) {
                 ImGui::DragInt("Steps", &ray_tracing_steps, 0.5f, 0, 1000);
+                ImGui::Checkbox("Binary Search", &use_binary_search);
             }
             ImGui::Separator();
             ImGui::EndTabItem();
