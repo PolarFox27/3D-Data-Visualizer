@@ -64,18 +64,23 @@ vec3 hsvToRGB(vec3 hsvColor) {
     return hsvColor.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), hsvColor.y);
 }
 
-// Compute the color based on the height by creating a Hue gradient between the colors.
-vec3 computeHeightGradient(float height, float minimum, float maximum, vec3 downColor, vec3 upColor){
-    float alpha1 = (height - minimum)/(maximum - minimum);
+// Compute the color based on a hue gradient between the colors.
+vec3 computeGradient(float value, float minimum, float maximum, vec3 downColor, vec3 upColor){
+    float alpha1 = (value - minimum)/(maximum - minimum);
     vec3 hsvColor1 = rgbToHSV(downColor);
     vec3 hsvColor2 = rgbToHSV(upColor);
     return hsvToRGB(vec3(mix(hsvColor1.x, hsvColor2.x, alpha1), hsvColor1.y, hsvColor1.z));
 }
 
+// Compute the terrain normal from the normal map.
+vec3 getTerrainNormalAtPos(vec3 pos) {
+    vec2 uv = vec2(pos.x/renderSize + 0.5, pos.z/renderSize + 0.5);
+    return texture(normalMap, uv).xyz;
+}
+
 // Compute diffuse lighting
 vec3 computeDiffuseLighting(vec3 Id, vec3 Kd, vec3 position, vec3 light) {
-    vec2 texCoord = vec2(position.x/renderSize + 0.5, position.z/renderSize + 0.5);
-    vec3 normal = texture(normalMap, texCoord).xyz;
+    vec3 normal = getTerrainNormalAtPos(position);
     float intensity = max(dot(normalize(normal), normalize(light)), 0.0);
     return Id * Kd * intensity;
 }
@@ -90,8 +95,14 @@ void main() {
     switch(mode){
 
         case 1: // Mode 1 : Hue gradient based on height.
-            surfaceColor = computeHeightGradient(pos.y, minHeight, maxHeight, color1, color2);
+            surfaceColor = computeGradient(pos.y, minHeight, maxHeight, color1, color2);
             break;  
+
+        case 2: // Mode 2 : Hue gradient based on slope steepness
+            vec3 normal = getTerrainNormalAtPos(pos);
+            float value = abs(dot(normal, vec3(0, 1, 0)));
+            surfaceColor = computeGradient(value, 0.0, 1.0, color1, color2);
+            break;
             
         default: // Mode 0 : Fixed color
             surfaceColor = color1;

@@ -33,7 +33,8 @@ DISABLE_WARNINGS_POP()
 // Dot Rendering Mode Enum
 enum class RenderingMode {
     FixedColor = 0,
-    Gradient = 1
+    Gradient = 1,
+    Slope = 2
 };
 
 // Pixels and Image Data

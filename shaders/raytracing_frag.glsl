@@ -139,9 +139,9 @@ vec3 hsvToRGB(vec3 hsvColor) {
     return hsvColor.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), hsvColor.y);
 }
 
-// Compute the color based on the height by creating a Hue gradient between color1 and color2.
-vec3 computeHeightGradient(float height){
-    float alpha1 = (height - aabbMin.y)/(aabbMax.y - aabbMin.y);
+// Compute the color based on a Hue gradient between color1 and color2.
+vec3 computeGradient(float value, float minimum, float maximum){
+    float alpha1 = (value - minimum)/(maximum - minimum);
     vec3 hsvColor1 = rgbToHSV(color1);
     vec3 hsvColor2 = rgbToHSV(color2);
     float hue = mix(hsvColor1.x, hsvColor2.x, alpha1);
@@ -162,8 +162,14 @@ vec3 computeColorAtPos(vec3 pos){
     switch(mode){
 
         case 1: // Mode 1 : Hue gradient based on height.
-            surfaceColor = computeHeightGradient(getTerrainHeightAtPos(pos));
-            break;  
+            surfaceColor = computeGradient(getTerrainHeightAtPos(pos), aabbMin.y, aabbMax.y);
+            break; 
+
+        case 2: // Mode 2 : Hue gradient based on slope steepness
+            vec3 normal = getTerrainNormalAtPos(pos);
+            float value = abs(dot(normal, vec3(0, 1, 0)));
+            surfaceColor = computeGradient(value, 0.0, 1.0);
+            break;
             
         default: // Mode 0 : Fixed color
             surfaceColor = color1;
