@@ -1,5 +1,5 @@
 [data]
-path = "resources/Mountains-16.png"
+path = "resources/Terrains/Mountains-16.png"
 render_size = 20.0
 render_height = 20.0
 
@@ -11,5 +11,6 @@ colors = [[0.9, 0.9, 0.9]]
 lookAt = [0.0, 0.0, -1.0]
 rotations = [0.0, 0.0, 0.0]
 dist = 10.0
-fovy = 50.0
 
+[gradient]
+path = "resources/ColorMaps/viridis.png"

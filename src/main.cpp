@@ -326,18 +326,22 @@ int main(int argc, char** argv)
     // Create program window
     Window w{ "3D Data Visualizer", glm::ivec2(WIDTH, HEIGHT), OpenGLVersion::GL41 };
     WINDOW = &w;
+    Trackball t{ WINDOW, glm::radians(50.0) };
+    TRACKBALL = &t;
     glEnable(GL_DEPTH);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_DEBUG_OUTPUT);
 
     // Parse initial scene config TOML
-    Trackball t = readInitialConfig(WINDOW, image_data, lights);
-    TRACKBALL = &t;
+    readInitialConfig(TRACKBALL, image_data, color_map, lights);
     render_height = image_data.render_height;
     render_size = image_data.render_size;
     max_render_distance = render_size;
 
     WINDOW->registerKeyCallback(keyPressedHandler);
+
+    // Create color map texture
+    GLuint colorMapTexture = createTexture(color_map);
 
     // Create dot cloud + wireframe vertices
     GLuint dotVAO, dotVBO;
@@ -453,11 +457,12 @@ int main(int argc, char** argv)
                 glBindTexture(GL_TEXTURE_2D, quadTexture);
                 glActiveTexture(GL_TEXTURE1);
                 glBindTexture(GL_TEXTURE_2D, normalMapTexture);
+                glActiveTexture(GL_TEXTURE2);
+                glBindTexture(GL_TEXTURE_2D, colorMapTexture);
                 glUniform1i(raytracingShader.getUniformLocation("heightMap"), 0); // Pass texture unit 0
                 glUniform1i(raytracingShader.getUniformLocation("normalMap"), 1); // Pass texture unit 1
+                glUniform1i(raytracingShader.getUniformLocation("colorMap"), 2); // Pass texture unit 2
                 glUniformMatrix4fv(raytracingShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
-                glUniform3fv(raytracingShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
-                glUniform3fv(raytracingShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
                 glUniform1iv(raytracingShader.getUniformLocation("maxSteps"), 1, &ray_tracing_steps);
                 glUniform3fv(raytracingShader.getUniformLocation("aabbMin"), 1, glm::value_ptr(aabbMin));
                 glUniform3fv(raytracingShader.getUniformLocation("aabbMax"), 1, glm::value_ptr(aabbMax));
@@ -492,11 +497,11 @@ int main(int argc, char** argv)
 
             //Shader and variable setup
             dotShader.bind();
-            glUniform3fv(dotShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
-            glUniform3fv(dotShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, colorMapTexture);
+            glUniform1i(dotShader.getUniformLocation("colorMap"), 0); // Pass texture unit 0
             glUniform1iv(dotShader.getUniformLocation("mode"), 1, &mode);
-            glUniform1f(dotShader.getUniformLocation("minHeight"), minHeight);
-            glUniform1f(dotShader.getUniformLocation("maxHeight"), maxHeight);
+            glUniform1f(dotShader.getUniformLocation("renderHeight"), image_data.render_height);
             glUniform1f(dotShader.getUniformLocation("minDistanceToCamera"), 0.0f);
             glUniform1f(dotShader.getUniformLocation("maxDistanceToCamera"), max_render_distance);
             glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
@@ -513,11 +518,11 @@ int main(int argc, char** argv)
                 // Render lines
                 if (render_lines) {
                     lineShader.bind();
-                    glUniform3fv(lineShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
-                    glUniform3fv(lineShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, colorMapTexture);
+                    glUniform1i(lineShader.getUniformLocation("colorMap"), 0); // Pass texture unit 0
                     glUniform1iv(lineShader.getUniformLocation("mode"), 1, &mode);
-                    glUniform1f(lineShader.getUniformLocation("minHeight"), minHeight);
-                    glUniform1f(lineShader.getUniformLocation("maxHeight"), maxHeight);
+                    glUniform1f(lineShader.getUniformLocation("renderHeight"), image_data.render_height);
                     glUniform1f(lineShader.getUniformLocation("minDistanceToCamera"), 0.0f);
                     glUniform1f(lineShader.getUniformLocation("maxDistanceToCamera"), max_render_distance);
                     glUniformMatrix4fv(lineShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
@@ -538,13 +543,13 @@ int main(int argc, char** argv)
                 triangleShader.bind();
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, normalMapTexture);
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, colorMapTexture);
                 glUniform1i(triangleShader.getUniformLocation("normalMap"), 0); // Pass texture unit 0
+                glUniform1i(triangleShader.getUniformLocation("colorMap"), 1); // Pass texture unit 1
                 glUniform1f(triangleShader.getUniformLocation("renderSize"), image_data.render_size);
-                glUniform3fv(triangleShader.getUniformLocation("color1"), 1, glm::value_ptr(color_1));
-                glUniform3fv(triangleShader.getUniformLocation("color2"), 1, glm::value_ptr(color_2));
                 glUniform1iv(triangleShader.getUniformLocation("mode"), 1, &mode);
-                glUniform1f(triangleShader.getUniformLocation("minHeight"), minHeight);
-                glUniform1f(triangleShader.getUniformLocation("maxHeight"), maxHeight);
+                glUniform1f(triangleShader.getUniformLocation("renderHeight"), image_data.render_height);
                 glUniform1i(triangleShader.getUniformLocation("lightAmount"), lights.size());
                 glUniformMatrix4fv(triangleShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
 

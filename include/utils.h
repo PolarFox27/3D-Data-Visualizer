@@ -67,6 +67,7 @@ const int WIDTH = 1200;
 const int HEIGHT = 800;
 const int MAX_LIGHT_AMOUNT = 20;
 ImageData image_data;
+ImageData color_map;
 Window* WINDOW;
 Trackball* TRACKBALL;
 
@@ -144,7 +145,7 @@ static std::vector<Pixel> loadPixelsFromImage(const char* filePath, int& width, 
 }
 
 
-static Trackball readInitialConfig(Window* window, ImageData& image, std::vector<Light>& lights_list) {
+static void readInitialConfig(Trackball* trackball, ImageData& image, ImageData& color_map, std::vector<Light>& lights_list) {
     const GLubyte* version = glGetString(GL_VERSION);
     std::cout << "OpenGL Version: " << version << std::endl;
 
@@ -173,14 +174,13 @@ static Trackball readInitialConfig(Window* window, ImageData& image, std::vector
     glm::vec3 rotations = tomlArrayToVec3(config["camera"]["rotations"].as_array());
     float fovY = config["camera"]["fovy"].value_or(50.0f);
     float dist = config["camera"]["dist"].value_or(1.0f);
-    Trackball trackball{ window, glm::radians(fovY) };
-    trackball.setCamera(look_at, rotations, dist);
+    trackball->setCamera(look_at, rotations, dist);
 
     // read image path from TOML
     std::cout << "Loading image... ";
     float render_size = config["data"]["render_size"].value_or(10.0f);
     float render_height = config["data"]["render_height"].value_or(5.0f);
-    auto data_path = std::string(RESOURCE_ROOT) + config["data"]["path"].value_or("resources/default.png");
+    auto data_path = std::string(RESOURCE_ROOT) + config["data"]["path"].value_or("resources/Terrains/default.png");
     int image_width, image_height;
     const std::vector<Pixel> pixels = loadPixelsFromImage(data_path.c_str(), image_width, image_height);
     std::cout << "done." << std::endl;
@@ -193,8 +193,11 @@ static Trackball readInitialConfig(Window* window, ImageData& image, std::vector
         std::cout << "Loaded image " << data_path.c_str() << " with dimensions " << image_width << "x" << image_height << std::endl;
         image = { pixels, image_width, image_height, render_size, render_height };
     }
-
-    return trackball;
+    auto color_map_path = std::string(RESOURCE_ROOT) + config["gradient"]["path"].value_or("resources/Colormaps/viridis.png");
+    int color_map_width, color_map_height;
+    const std::vector<Pixel> color_map_pixels = loadPixelsFromImage(color_map_path.c_str(), color_map_width, color_map_height);
+    std::cout << "Loaded color map " << color_map_path.c_str() << " with dimensions " << color_map_width << "x" << color_map_height << std::endl;
+    color_map = { color_map_pixels, color_map_width, color_map_height, 0.0, 0.0 };
 }
 
 //===========================================================================

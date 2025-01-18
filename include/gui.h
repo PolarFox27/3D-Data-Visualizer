@@ -8,8 +8,6 @@
 // General
 bool show_imgui = true;
 bool show_raytracing_tab = false;
-glm::vec3 color_1{ 1.0f, 0.0f, 0.0f };
-glm::vec3 color_2{ 0.0f, 1.0f, 0.0f };
 float render_height = 5.0f;
 float render_size = 20.0f;
 
@@ -220,8 +218,6 @@ static void renderGUI()
 
     // Base Parameters
     ImGui::Text("Base Parameters");
-    ImGui::ColorEdit3("Color 1", &color_1[0]);
-    ImGui::ColorEdit3("Color 2", &color_2[0]);
     ImGui::InputFloat("Width", &render_size);
     ImGui::InputFloat("Height", &render_height);
 
