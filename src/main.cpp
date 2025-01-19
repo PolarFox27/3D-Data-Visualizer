@@ -1,25 +1,49 @@
 #include <gui.h>
 
+//=============================OpenGL Variables==============================
+
+GLuint dotVAO, dotVBO;
+GLuint wireframeVAO, wireframeVBO, wireframeEBO;
+GLuint triangleVAO, triangleVBO, triangleEBO;
+GLuint raytracingVAO, raytracingVBO, raytracingEBO;
+GLuint lightUBO;
+GLuint lightVAO, lightVBO;
+GLuint quadVAO, quadVBO, quadEBO;
+GLuint heightMapTexture, normalMapTexture, colorMapTexture, secondDerivativeTexture;
+
+int dotAmount, wireframeVerticesAmount, triangleVerticesAmount;
+float minHeight, maxHeight;
+std::vector<glm::vec3> vertices;
+std::vector<glm::vec3> normals;
+
+
+// Shaders
+Shader lightShader;
+Shader dotShader;
+Shader quadShader;
+Shader triangleShader;
+Shader lineShader;
+Shader raytracingShader;
+
+const unsigned int QUAD_INDICES[] = {
+        0, 1, 2,  // First Triangle
+        2, 3, 0   // Second Triangle
+};
+
+const float RAYTRACING_VERTICES[] = {
+    // Positions       // Texture Coords
+    -1.0f, -1.0f, 0.0f,  0.0f, 0.0f,  // Bottom-left
+     1.0f, -1.0f, 0.0f,  1.0f, 0.0f,  // Bottom-right
+     1.0f,  1.0f, 0.0f,  1.0f, 1.0f,  // Top-right
+    -1.0f,  1.0f, 0.0f,  0.0f, 1.0f   // Top-left
+};
+
+
+//===========================================================================
+
+
+
 //============================Vertices Functions=============================
-
-static float heightFromPixel(Pixel pixel) {
-    return 0.299f * static_cast<float>(pixel.R) / 65535.0f
-         + 0.587f * static_cast<float>(pixel.G) / 65535.0f
-         + 0.114f * static_cast<float>(pixel.B) / 65535.0f;
-}
-
-static glm::vec3 getVertexFromPixel(const ImageData& data, int x, int z) {
-    const Pixel pixel = data.pixels[z * data.width + x];
-    float y = heightFromPixel(pixel) * data.render_height;
-    float xPos = data.render_size * (static_cast<float>(x) / static_cast<float>(data.width) - 0.5f);
-    float zPos = data.render_size * (static_cast<float>(z) / static_cast<float>(data.height) - 0.5f);
-    return glm::vec3(xPos, y, zPos);
-}
-
-static void computeAABB(const ImageData& data, float minHeight, float maxHeight, glm::vec3& aabbMin, glm::vec3& aabbMax) {
-    aabbMin = glm::vec3(-data.render_size/2.0f, minHeight, -data.render_size / 2.0f);
-    aabbMax = glm::vec3(data.render_size / 2.0f, maxHeight, data.render_size / 2.0f);
-}
 
 static void clearAndLoadNewVertices(const std::vector<glm::vec3>& vertices, GLuint* VAO, GLuint* VBO) {
     // Clean previous VAO and VBO
@@ -181,7 +205,7 @@ static int loadQuadVertices(const ImageData& data, GLuint* quadVAO, GLuint* quad
     float offsetZ = -0.5f * data.render_size / static_cast<float>(data.height);
     float vertices[] = {
         // Positions                                                                // Texture Coords
-        -0.5f*data.render_size + offsetX, 0.0f, -0.5f * data.render_size + offsetZ,  0.0f, 0.0f, // Bottom-left
+        -0.5f * data.render_size + offsetX, 0.0f, -0.5f * data.render_size + offsetZ,  0.0f, 0.0f, // Bottom-left
          0.5f * data.render_size + offsetX, 0.0f, -0.5f * data.render_size + offsetZ,  1.0f, 0.0f, // Bottom-right
          0.5f * data.render_size + offsetX, 0.0f,  0.5f * data.render_size + offsetZ,  1.0f, 1.0f, // Top-right
         -0.5f * data.render_size + offsetX, 0.0f, 0.5f * data.render_size + offsetZ,  0.0f, 1.0f  // Top-left
@@ -190,7 +214,7 @@ static int loadQuadVertices(const ImageData& data, GLuint* quadVAO, GLuint* quad
         0, 1, 2,  // First Triangle
         2, 3, 0   // Second Triangle
     };
-    
+
     // Clean previous VAO and VBO
     glDeleteVertexArrays(1, quadVAO);
     glDeleteBuffers(1, quadVBO);
@@ -237,7 +261,7 @@ static void loadRaytracingVertices(GLuint& raytracingVAO, GLuint& raytracingVBO,
         0, 1, 2,  // First triangle
         2, 3, 0   // Second triangle
     };
-    
+
     glGenVertexArrays(1, &raytracingVAO);
     glGenBuffers(1, &raytracingVBO);
     glGenBuffers(1, &raytracingEBO);
@@ -283,40 +307,104 @@ static void loadLightsToUBO(const std::vector<Light>& lightArray, GLuint UBO) {
 //===========================================================================
 
 
-static GLuint createTexture(const ImageData& data) {
-    GLuint texture;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
 
-    // Set texture parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    // Upload texture data
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, data.width, data.height, 0, GL_RGB, GL_UNSIGNED_SHORT, data.pixels.data());
-
-    glBindTexture(GL_TEXTURE_2D, 0); // Unbind texture
-    return texture;
+static void loadNextColorMap() {
+    active_color_map = (active_color_map + 1) % color_maps.size();
+    colorMapTexture = createTexture(color_maps[active_color_map]);
 }
 
-static GLuint createNormalTexture(const ImageData& data, const std::vector<glm::vec3>& normalMap) {
-    GLuint texture;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
 
-    // Set texture parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+// Key Pressed Handler
+static void keyPressedHandler(int key, int /* scancode */, int action, int /* mods */) {
+    if (key == GLFW_KEY_TAB && action == GLFW_PRESS) {
+        show_imgui = !show_imgui;
+    }
 
-    // Upload texture data
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, data.width, data.height, 0, GL_RGB, GL_FLOAT, normalMap.data());
+    if (action != GLFW_RELEASE)
+        return;
 
-    glBindTexture(GL_TEXTURE_2D, 0); // Unbind texture
-    return texture;
+    const bool shiftPressed = WINDOW->isKeyPressed(GLFW_KEY_LEFT_SHIFT) || WINDOW->isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+
+    switch (key) {
+    case GLFW_KEY_H: {
+        printHelp();
+        return;
+    }
+    case GLFW_KEY_L: {
+        if (shiftPressed)
+            lights.push_back(Light{ TRACKBALL->position(), glm::vec3(1) });
+        else
+            lights[selectedLightIndex].position = TRACKBALL->position();
+        return;
+    }
+    case GLFW_KEY_UP: {
+        selectPreviousLight();
+        return;
+    }
+    case GLFW_KEY_DOWN: {
+        selectNextLight();
+        return;
+    }
+    case GLFW_KEY_N: {
+        resetLights();
+        return;
+    }
+    case GLFW_KEY_DELETE: {
+        deleteLight();
+        return;
+    }
+    case GLFW_KEY_C: {
+        loadNextColorMap();
+        return;
+    }
+    case GLFW_KEY_R: {
+        if (shiftPressed) { // If shift pressed, decrease selected light red channel by 0.1
+            if (lights[selectedLightIndex].color.x >= 0.1f)
+                lights[selectedLightIndex].color.x -= 0.1f;
+        }
+        else { // Else, increase selected light red channel by 0.1
+            if (lights[selectedLightIndex].color.x <= 0.9f)
+                lights[selectedLightIndex].color.x += 0.1f;
+        }
+        std::cout << "Light " << selectedLightIndex << " color : [" << lights[selectedLightIndex].color.x << ", "
+            << lights[selectedLightIndex].color.y << ", "
+            << lights[selectedLightIndex].color.z << "]"
+            << std::endl;
+        return;
+    }
+    case GLFW_KEY_G: {
+        if (shiftPressed) { // If shift pressed, decrease selected light green channel by 0.1
+            if (lights[selectedLightIndex].color.y >= 0.1f)
+                lights[selectedLightIndex].color.y -= 0.1f;
+        }
+        else { // Else, increase selected light green channel by 0.1
+            if (lights[selectedLightIndex].color.y <= 0.9f)
+                lights[selectedLightIndex].color.y += 0.1f;
+        }
+        std::cout << "Light " << selectedLightIndex << " color : [" << lights[selectedLightIndex].color.x << ", "
+            << lights[selectedLightIndex].color.y << ", "
+            << lights[selectedLightIndex].color.z << "]"
+            << std::endl;
+        return;
+    }
+    case GLFW_KEY_B: {
+        if (shiftPressed) { // If shift pressed, decrease selected light blue channel by 0.1
+            if (lights[selectedLightIndex].color.z >= 0.1f)
+                lights[selectedLightIndex].color.z -= 0.1f;
+        }
+        else { // Else, increase selected light blue channel by 0.1
+            if (lights[selectedLightIndex].color.z <= 0.9f)
+                lights[selectedLightIndex].color.z += 0.1f;
+        }
+        std::cout << "Light " << selectedLightIndex << " color : [" << lights[selectedLightIndex].color.x << ", "
+            << lights[selectedLightIndex].color.y << ", "
+            << lights[selectedLightIndex].color.z << "]"
+            << std::endl;
+        return;
+    }
+    default:
+        return;
+    };
 }
 
 
@@ -333,7 +421,7 @@ int main(int argc, char** argv)
     glEnable(GL_DEBUG_OUTPUT);
 
     // Parse initial scene config TOML
-    readInitialConfig(TRACKBALL, image_data, color_map, lights);
+    readInitialConfig(TRACKBALL, image_data, color_maps, lights);
     render_height = image_data.render_height;
     render_size = image_data.render_size;
     max_render_distance = render_size;
@@ -341,32 +429,27 @@ int main(int argc, char** argv)
     WINDOW->registerKeyCallback(keyPressedHandler);
 
     // Create color map texture
-    GLuint colorMapTexture = createTexture(color_map);
+    colorMapTexture = createTexture(color_maps[active_color_map]);
 
     // Create dot cloud + wireframe vertices
-    GLuint dotVAO, dotVBO;
-    GLuint wireframeVAO, wireframeVBO, wireframeEBO;
-    float minHeight, maxHeight;
-    std::vector<glm::vec3> vertices = loadVertices(image_data, &maxHeight, &minHeight);
-    std::vector<glm::vec3> normals = computeNormalMap(image_data, vertices);
-    GLuint normalMapTexture = createNormalTexture(image_data, normals);
-    int dotAmount = image_data.width * image_data.height;
+    vertices = loadVertices(image_data, &maxHeight, &minHeight);
+    normals = computeNormalMap(image_data, vertices);
+    normalMapTexture = createNormalTexture(image_data, normals);
+    dotAmount = image_data.width * image_data.height;
     loadDotVertices(vertices, &dotVAO, &dotVBO);
-    int wireframeVerticesAmount = loadWireframeVertices(image_data.width, image_data.height, vertices, &wireframeVAO, &wireframeVBO, &wireframeEBO);
+    wireframeVerticesAmount = loadWireframeVertices(image_data.width, image_data.height, vertices, &wireframeVAO, &wireframeVBO, &wireframeEBO);
 
     // Create triangle vertices
-    GLuint triangleVAO, triangleVBO, triangleEBO;
     int triangleVerticesAmount = loadTriangleVertices(image_data.width, image_data.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO);
 
     // Light VAO and VBO
-    GLuint lightVAO, lightVBO;
+    
     glGenVertexArrays(1, &lightVAO);
     glGenBuffers(1, &lightVBO);
     glBindVertexArray(lightVAO);
     glBindBuffer(GL_ARRAY_BUFFER, lightVBO);
 
     // Light UBO
-    GLuint lightUBO;
     glGenBuffers(1, &lightUBO);
     glBindBuffer(GL_UNIFORM_BUFFER, lightUBO);
 
@@ -378,38 +461,36 @@ int main(int argc, char** argv)
 
 
     // Quad Texture and Vertices
-    GLuint quadTexture = createTexture(image_data);
-    GLuint quadVAO, quadVBO, quadEBO;
+    heightMapTexture = createTexture(image_data);
     loadQuadVertices(image_data, &quadVAO, &quadVBO, &quadEBO);
 
     // RayTracing
-    GLuint raytracingVAO, raytracingVBO, raytracingEBO;
     loadRaytracingVertices(raytracingVAO, raytracingVBO, raytracingEBO);
     glm::vec3 aabbMin, aabbMax;
     computeAABB(image_data, minHeight, maxHeight, aabbMin, aabbMax);
 
 
     // Shaders
-    const Shader lightShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/light_vertex.glsl")
-                                              .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/light_frag.glsl")
-                                              .build();
-    const Shader dotShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/dot_vertex.glsl")
-                                            .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/dot_frag.glsl")
-                                            .build();
-    const Shader quadShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/quad_vertex.glsl")
-                                             .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/quad_frag.glsl")
-                                             .build();
-    const Shader triangleShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/triangle_vertex.glsl")
-                                                 .addStage(GL_GEOMETRY_SHADER, RESOURCE_ROOT "shaders/triangle_geometry.glsl")
-                                                 .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/triangle_frag.glsl")
-                                                 .build();
-    const Shader lineShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/triangle_vertex.glsl")
-                                             .addStage(GL_GEOMETRY_SHADER, RESOURCE_ROOT "shaders/line_geometry.glsl")
-                                             .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/dot_frag.glsl")
-                                             .build();
-    const Shader raytracingShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/raytracing_vertex.glsl")
-                                                   .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/raytracing_frag.glsl")
-                                                   .build();
+    lightShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/light_vertex.glsl")
+                                 .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/light_frag.glsl")
+                                 .build();
+    dotShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/dot_vertex.glsl")
+                               .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/dot_frag.glsl")
+                               .build();
+    quadShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/quad_vertex.glsl")
+                                .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/quad_frag.glsl")
+                                .build();
+    triangleShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/triangle_vertex.glsl")
+                                    .addStage(GL_GEOMETRY_SHADER, RESOURCE_ROOT "shaders/triangle_geometry.glsl")
+                                    .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/triangle_frag.glsl")
+                                    .build();
+    lineShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/triangle_vertex.glsl")
+                                .addStage(GL_GEOMETRY_SHADER, RESOURCE_ROOT "shaders/line_geometry.glsl")
+                                .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/dot_frag.glsl")
+                                .build();
+    raytracingShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/raytracing_vertex.glsl")
+                                      .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/raytracing_frag.glsl")
+                                      .build();
 
 
     // Main loop.
@@ -431,8 +512,8 @@ int main(int argc, char** argv)
             normals = computeNormalMap(image_data, vertices);
             normalMapTexture = createNormalTexture(image_data, normals);
             loadDotVertices(vertices, &dotVAO, &dotVBO);
-            int wireframeVerticesAmount = loadWireframeVertices(image_data.width, image_data.height, vertices, &wireframeVAO, &wireframeVBO, &wireframeEBO);
-            int triangleVerticesAmount = loadTriangleVertices(image_data.width, image_data.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO);
+            wireframeVerticesAmount = loadWireframeVertices(image_data.width, image_data.height, vertices, &wireframeVAO, &wireframeVBO, &wireframeEBO);
+            triangleVerticesAmount = loadTriangleVertices(image_data.width, image_data.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO);
             loadQuadVertices(image_data, &quadVAO, &quadVBO, &quadEBO);
             computeAABB(image_data, minHeight, maxHeight, aabbMin, aabbMax);
         }
@@ -449,16 +530,19 @@ int main(int argc, char** argv)
 
         loadLightsToUBO(lights, lightUBO);
 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, heightMapTexture);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, normalMapTexture);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, colorMapTexture);
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, secondDerivativeTexture);
+
         // Ray Tracing
         if (show_raytracing_tab) {
             if (enable_ray_tracing) {
                 raytracingShader.bind();
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, quadTexture);
-                glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_2D, normalMapTexture);
-                glActiveTexture(GL_TEXTURE2);
-                glBindTexture(GL_TEXTURE_2D, colorMapTexture);
                 glUniform1i(raytracingShader.getUniformLocation("heightMap"), 0); // Pass texture unit 0
                 glUniform1i(raytracingShader.getUniformLocation("normalMap"), 1); // Pass texture unit 1
                 glUniform1i(raytracingShader.getUniformLocation("colorMap"), 2); // Pass texture unit 2
@@ -483,9 +567,7 @@ int main(int argc, char** argv)
             // Draw Flat Image
             if (render_quad) {
                 quadShader.bind();
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, quadTexture);
-                glUniform1i(quadShader.getUniformLocation("quadTexture"), 0); // Pass texture unit 0
+                glUniform1i(quadShader.getUniformLocation("heightMap"), 0); // Pass texture unit 0
                 glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
                 glUniform1f(quadShader.getUniformLocation("height"), height);
 
@@ -497,9 +579,7 @@ int main(int argc, char** argv)
 
             //Shader and variable setup
             dotShader.bind();
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, colorMapTexture);
-            glUniform1i(dotShader.getUniformLocation("colorMap"), 0); // Pass texture unit 0
+            glUniform1i(dotShader.getUniformLocation("colorMap"), 2); // Pass texture unit 2
             glUniform1iv(dotShader.getUniformLocation("mode"), 1, &mode);
             glUniform1f(dotShader.getUniformLocation("renderHeight"), image_data.render_height);
             glUniform1f(dotShader.getUniformLocation("minDistanceToCamera"), 0.0f);
@@ -518,9 +598,7 @@ int main(int argc, char** argv)
                 // Render lines
                 if (render_lines) {
                     lineShader.bind();
-                    glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, colorMapTexture);
-                    glUniform1i(lineShader.getUniformLocation("colorMap"), 0); // Pass texture unit 0
+                    glUniform1i(lineShader.getUniformLocation("colorMap"), 2); // Pass texture unit 2
                     glUniform1iv(lineShader.getUniformLocation("mode"), 1, &mode);
                     glUniform1f(lineShader.getUniformLocation("renderHeight"), image_data.render_height);
                     glUniform1f(lineShader.getUniformLocation("minDistanceToCamera"), 0.0f);
@@ -541,12 +619,8 @@ int main(int argc, char** argv)
             // Draw triangles
             if (render_triangles) {
                 triangleShader.bind();
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, normalMapTexture);
-                glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_2D, colorMapTexture);
-                glUniform1i(triangleShader.getUniformLocation("normalMap"), 0); // Pass texture unit 0
-                glUniform1i(triangleShader.getUniformLocation("colorMap"), 1); // Pass texture unit 1
+                glUniform1i(triangleShader.getUniformLocation("normalMap"), 1); // Pass texture unit 1
+                glUniform1i(triangleShader.getUniformLocation("colorMap"), 2); // Pass texture unit 2
                 glUniform1f(triangleShader.getUniformLocation("renderSize"), image_data.render_size);
                 glUniform1iv(triangleShader.getUniformLocation("mode"), 1, &mode);
                 glUniform1f(triangleShader.getUniformLocation("renderHeight"), image_data.render_height);

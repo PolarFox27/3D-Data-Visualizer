@@ -67,7 +67,8 @@ const int WIDTH = 1200;
 const int HEIGHT = 800;
 const int MAX_LIGHT_AMOUNT = 20;
 ImageData image_data;
-ImageData color_map;
+std::vector<ImageData> color_maps;
+int active_color_map = 0;
 Window* WINDOW;
 Trackball* TRACKBALL;
 
@@ -145,7 +146,7 @@ static std::vector<Pixel> loadPixelsFromImage(const char* filePath, int& width, 
 }
 
 
-static void readInitialConfig(Trackball* trackball, ImageData& image, ImageData& color_map, std::vector<Light>& lights_list) {
+static void readInitialConfig(Trackball* trackball, ImageData& image, std::vector<ImageData>& color_maps, std::vector<Light>& lights_list) {
     const GLubyte* version = glGetString(GL_VERSION);
     std::cout << "OpenGL Version: " << version << std::endl;
 
@@ -193,11 +194,77 @@ static void readInitialConfig(Trackball* trackball, ImageData& image, ImageData&
         std::cout << "Loaded image " << data_path.c_str() << " with dimensions " << image_width << "x" << image_height << std::endl;
         image = { pixels, image_width, image_height, render_size, render_height };
     }
-    auto color_map_path = std::string(RESOURCE_ROOT) + config["gradient"]["path"].value_or("resources/Colormaps/viridis.png");
-    int color_map_width, color_map_height;
-    const std::vector<Pixel> color_map_pixels = loadPixelsFromImage(color_map_path.c_str(), color_map_width, color_map_height);
-    std::cout << "Loaded color map " << color_map_path.c_str() << " with dimensions " << color_map_width << "x" << color_map_height << std::endl;
-    color_map = { color_map_pixels, color_map_width, color_map_height, 0.0, 0.0 };
+
+    color_maps = std::vector<ImageData>{};
+    size_t num_color_maps = config["gradient"]["paths"].as_array()->size();
+    for (size_t i = 0; i < num_color_maps; ++i) {
+        auto color_map_path = std::string(RESOURCE_ROOT) + config["gradient"]["paths"][i].value_or("resources/Colormaps/viridis.png");
+        int color_map_width, color_map_height;
+        const std::vector<Pixel> color_map_pixels = loadPixelsFromImage(color_map_path.c_str(), color_map_width, color_map_height);
+        std::cout << "Loaded color map " << color_map_path.c_str() << " with dimensions " << color_map_width << "x" << color_map_height << std::endl;
+        color_maps.emplace_back(ImageData{ color_map_pixels, color_map_width, color_map_height, 0.0, 0.0 });
+    }
+}
+
+//===========================================================================
+
+
+
+//==========================OpenGL Helper Functions==========================
+
+static GLuint createTexture(const ImageData& data) {
+    GLuint texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    // Set texture parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Upload texture data
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, data.width, data.height, 0, GL_RGB, GL_UNSIGNED_SHORT, data.pixels.data());
+
+    glBindTexture(GL_TEXTURE_2D, 0); // Unbind texture
+    return texture;
+}
+
+static GLuint createNormalTexture(const ImageData& data, const std::vector<glm::vec3>& normalMap) {
+    GLuint texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    // Set texture parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Upload texture data
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, data.width, data.height, 0, GL_RGB, GL_FLOAT, normalMap.data());
+
+    glBindTexture(GL_TEXTURE_2D, 0); // Unbind texture
+    return texture;
+}
+
+static float getHeightFromPixel(Pixel pixel) {
+    return 0.299f * static_cast<float>(pixel.R) / 65535.0f
+        + 0.587f * static_cast<float>(pixel.G) / 65535.0f
+        + 0.114f * static_cast<float>(pixel.B) / 65535.0f;
+}
+
+static glm::vec3 getVertexFromPixel(const ImageData& data, int x, int z) {
+    const Pixel pixel = data.pixels[z * data.width + x];
+    float y = getHeightFromPixel(pixel) * data.render_height;
+    float xPos = data.render_size * (static_cast<float>(x) / static_cast<float>(data.width) - 0.5f);
+    float zPos = data.render_size * (static_cast<float>(z) / static_cast<float>(data.height) - 0.5f);
+    return glm::vec3(xPos, y, zPos);
+}
+
+static void computeAABB(const ImageData& data, float minHeight, float maxHeight, glm::vec3& aabbMin, glm::vec3& aabbMax) {
+    aabbMin = glm::vec3(-data.render_size / 2.0f, minHeight, -data.render_size / 2.0f);
+    aabbMax = glm::vec3(data.render_size / 2.0f, maxHeight, data.render_size / 2.0f);
 }
 
 //===========================================================================

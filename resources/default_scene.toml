@@ -13,4 +13,8 @@ rotations = [0.0, 0.0, 0.0]
 dist = 10.0
 
 [gradient]
-path = "resources/ColorMaps/viridis.png"
+paths = ["resources/ColorMaps/inferno.png",
+		 "resources/ColorMaps/magma.png",
+		 "resources/ColorMaps/plasma.png",
+		 "resources/ColorMaps/rainbow.png",
+		 "resources/ColorMaps/viridis.png"]
