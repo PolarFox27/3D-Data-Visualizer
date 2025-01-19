@@ -49,8 +49,8 @@ struct ImageData {
     std::vector<Pixel> pixels;         // The image pixel data
     int width = 0;                     // The image width (in pixels)
     int height = 0;                    // The image height (in pixels)
-    float render_size = 1.0f;          // The dot cloud render width
-    float render_height = 1.0f;        // The dot cloud render height
+    float renderSize = 1.0f;          // The dot cloud render width
+    float renderHeight = 1.0f;        // The dot cloud render height
 };
 
 // Light
@@ -66,9 +66,9 @@ struct Light {
 const int WIDTH = 1200;
 const int HEIGHT = 800;
 const int MAX_LIGHT_AMOUNT = 20;
-ImageData image_data;
-std::vector<ImageData> color_maps;
-int active_color_map = 0;
+ImageData imageData;
+std::vector<ImageData> colorMaps;
+int activeColorMap = 0;
 Window* WINDOW;
 Trackball* TRACKBALL;
 
@@ -146,7 +146,7 @@ static std::vector<Pixel> loadPixelsFromImage(const char* filePath, int& width, 
 }
 
 
-static void readInitialConfig(Trackball* trackball, ImageData& image, std::vector<ImageData>& color_maps, std::vector<Light>& lights_list) {
+static void readInitialConfig(Trackball* trackball, ImageData& image, std::vector<ImageData>& colorMaps, std::vector<Light>& lightList) {
     const GLubyte* version = glGetString(GL_VERSION);
     std::cout << "OpenGL Version: " << version << std::endl;
 
@@ -162,47 +162,46 @@ static void readInitialConfig(Trackball* trackball, ImageData& image, std::vecto
     }
 
     // read lights from TOML
-    lights_list = std::vector<Light>{};
-    size_t num_lights = config["lights"]["positions"].as_array()->size();
-    for (size_t i = 0; i < num_lights; ++i) {
+    lightList = std::vector<Light>{};
+    size_t lightAmount = config["lights"]["positions"].as_array()->size();
+    for (size_t i = 0; i < lightAmount; ++i) {
         auto pos = tomlArrayToVec3(config["lights"]["positions"][i].as_array());
         auto color = tomlArrayToVec3(config["lights"]["colors"][i].as_array());
-        lights_list.emplace_back(Light{ pos, color });
+        lightList.emplace_back(Light{ pos, color });
     }
 
     // read camera settings from TOML and setup trackball
-    glm::vec3 look_at = tomlArrayToVec3(config["camera"]["lookAt"].as_array());
+    glm::vec3 lookAt = tomlArrayToVec3(config["camera"]["look_at"].as_array());
     glm::vec3 rotations = tomlArrayToVec3(config["camera"]["rotations"].as_array());
     float fovY = config["camera"]["fovy"].value_or(50.0f);
     float dist = config["camera"]["dist"].value_or(1.0f);
-    trackball->setCamera(look_at, rotations, dist);
+    trackball->setCamera(lookAt, rotations, dist);
 
     // read image path from TOML
     std::cout << "Loading image... ";
-    float render_size = config["data"]["render_size"].value_or(10.0f);
-    float render_height = config["data"]["render_height"].value_or(5.0f);
-    auto data_path = std::string(RESOURCE_ROOT) + config["data"]["path"].value_or("resources/Terrains/default.png");
-    int image_width, image_height;
-    const std::vector<Pixel> pixels = loadPixelsFromImage(data_path.c_str(), image_width, image_height);
+    float renderSize = config["data"]["render_size"].value_or(10.0f);
+    float renderHeight = config["data"]["render_height"].value_or(5.0f);
+    auto dataPath = std::string(RESOURCE_ROOT) + config["data"]["path"].value_or("resources/Terrains/default.png");
+    int width, height;
+    const std::vector<Pixel> pixels = loadPixelsFromImage(dataPath.c_str(), width, height);
     std::cout << "done." << std::endl;
-    if (image_width != image_height) {
+    if (width != height) {
         std::cout << "ERROR: image must have be a square!" << std::endl << "  => Basic Image is loaded instead." << std::endl;
         const std::vector<Pixel> basicPixels = { Pixel(0, 0, 0), Pixel(0, 0, 0), Pixel(65365, 65365, 65365), Pixel(65365, 65365, 65365) };
-        image = { basicPixels, 2, 2, render_size, render_height };
+        image = { basicPixels, 2, 2, renderSize, renderHeight };
     }
     else {
-        std::cout << "Loaded image " << data_path.c_str() << " with dimensions " << image_width << "x" << image_height << std::endl;
-        image = { pixels, image_width, image_height, render_size, render_height };
+        std::cout << "Loaded image " << dataPath.c_str() << " with dimensions " << width << "x" << height << std::endl;
+        image = { pixels, width, height, renderSize, renderHeight };
     }
 
-    color_maps = std::vector<ImageData>{};
-    size_t num_color_maps = config["gradient"]["paths"].as_array()->size();
-    for (size_t i = 0; i < num_color_maps; ++i) {
-        auto color_map_path = std::string(RESOURCE_ROOT) + config["gradient"]["paths"][i].value_or("resources/Colormaps/viridis.png");
-        int color_map_width, color_map_height;
-        const std::vector<Pixel> color_map_pixels = loadPixelsFromImage(color_map_path.c_str(), color_map_width, color_map_height);
-        std::cout << "Loaded color map " << color_map_path.c_str() << " with dimensions " << color_map_width << "x" << color_map_height << std::endl;
-        color_maps.emplace_back(ImageData{ color_map_pixels, color_map_width, color_map_height, 0.0, 0.0 });
+    colorMaps = std::vector<ImageData>{};
+    size_t colorMapsAmount = config["gradient"]["paths"].as_array()->size();
+    for (size_t i = 0; i < colorMapsAmount; ++i) {
+        auto path = std::string(RESOURCE_ROOT) + config["gradient"]["paths"][i].value_or("resources/Colormaps/viridis.png");
+        const std::vector<Pixel> color_map_pixels = loadPixelsFromImage(path.c_str(), width, height);
+        std::cout << "Loaded color map " << path.c_str() << " with dimensions " << width << "x" << height << std::endl;
+        colorMaps.emplace_back(ImageData{ color_map_pixels, width, height, 0.0, 0.0 });
     }
 }
 
@@ -256,15 +255,10 @@ static float getHeightFromPixel(Pixel pixel) {
 
 static glm::vec3 getVertexFromPixel(const ImageData& data, int x, int z) {
     const Pixel pixel = data.pixels[z * data.width + x];
-    float y = getHeightFromPixel(pixel) * data.render_height;
-    float xPos = data.render_size * (static_cast<float>(x) / static_cast<float>(data.width) - 0.5f);
-    float zPos = data.render_size * (static_cast<float>(z) / static_cast<float>(data.height) - 0.5f);
+    float y = getHeightFromPixel(pixel) * data.renderHeight;
+    float xPos = data.renderSize * (static_cast<float>(x) / static_cast<float>(data.width) - 0.5f);
+    float zPos = data.renderSize * (static_cast<float>(z) / static_cast<float>(data.height) - 0.5f);
     return glm::vec3(xPos, y, zPos);
-}
-
-static void computeAABB(const ImageData& data, float minHeight, float maxHeight, glm::vec3& aabbMin, glm::vec3& aabbMax) {
-    aabbMin = glm::vec3(-data.render_size / 2.0f, minHeight, -data.render_size / 2.0f);
-    aabbMax = glm::vec3(data.render_size / 2.0f, maxHeight, data.render_size / 2.0f);
 }
 
 //===========================================================================

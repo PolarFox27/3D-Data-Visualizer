@@ -6,34 +6,34 @@
 //==============================Configuration================================
 
 // General
-bool show_imgui = true;
-bool show_raytracing_tab = false;
-float render_height = 5.0f;
-float render_size = 20.0f;
+bool showGui = true;
+bool showRaytracingTab = false;
+float renderHeight = 5.0f;
+float renderSize = 20.0f;
 
 // Quad
-bool render_quad = false;
+bool showFlatQuad = false;
 float height = 0.0f;
 
 // Dots
-bool render_dots = false;
-bool render_lines = false;
-bool render_wireframe = false;
-float dot_size = 2.0f;
-float max_render_distance = 20.0f;
-RenderingMode render_mode = RenderingMode::FixedColor;
+bool showDots = false;
+bool showLines = false;
+bool showWireframe = false;
+float dotSize = 2.0f;
+float maxRenderDistance = 20.0f;
+RenderingMode renderMode = RenderingMode::FixedColor;
 
 // Triangles
-bool render_triangles = false;
+bool showTriangles = false;
 
 // Lights
 std::vector<Light> lights{};
 size_t selectedLightIndex = 0;
 
 // Ray Tracing
-bool enable_ray_tracing = false;
-int ray_tracing_steps = 100;
-bool use_binary_search = false;
+bool showRaytracing = false;
+int maxSteps = 100;
+bool useBinarySearch = false;
 
 //===========================================================================
 
@@ -119,7 +119,7 @@ static void printElapsedTime(std::chrono::time_point<std::chrono::high_resolutio
 static void renderGUI()
 {
     // UI Menu
-    if (!show_imgui)
+    if (!showGui)
         return;
 
     // Title
@@ -129,38 +129,38 @@ static void renderGUI()
 
     // Base Parameters
     ImGui::Text("Base Parameters");
-    ImGui::InputFloat("Width", &render_size);
-    ImGui::InputFloat("Height", &render_height);
+    ImGui::InputFloat("Width", &renderSize);
+    ImGui::InputFloat("Height", &renderHeight);
 
     // Dropdown for render mode
-    std::array render_mode_names{ "Fixed Color", "Height Gradient", "Slope Gradient"};
-    int current_render_mode = static_cast<int>(render_mode);
-    ImGui::Combo("Render Mode", &current_render_mode, render_mode_names.data(), (int)render_mode_names.size());
-    render_mode = static_cast<RenderingMode>(current_render_mode);
+    std::array renderMode_names{ "Fixed Color", "Height Gradient", "Slope Gradient"};
+    int current_renderMode = static_cast<int>(renderMode);
+    ImGui::Combo("Render Mode", &current_renderMode, renderMode_names.data(), (int)renderMode_names.size());
+    renderMode = static_cast<RenderingMode>(current_renderMode);
     ImGui::Separator();
 
     // Tabs
     if (ImGui::BeginTabBar("Mode")) {
         // Rasterization Tab
         if (ImGui::BeginTabItem("Rasterization")) {
-            show_raytracing_tab = false;
+            showRaytracingTab = false;
 
             // Quad Rendering
-            ImGui::Checkbox("Render Flat Image", &render_quad);
-            if (render_quad) {
-                ImGui::SliderFloat("Height", &height, -render_height, render_height);
+            ImGui::Checkbox("Render Flat Image", &showFlatQuad);
+            if (showFlatQuad) {
+                ImGui::SliderFloat("Height", &height, -renderHeight, renderHeight);
             }
             ImGui::Separator();
 
             // Dots Rendering
             ImGui::Text("Dots");
-            ImGui::Checkbox("Show Dots", &render_dots);
-            if (render_dots) {
+            ImGui::Checkbox("Show Dots", &showDots);
+            if (showDots) {
                 ImGui::Indent(0.0f);
-                ImGui::InputFloat("Dot Size", &dot_size);
-                ImGui::InputFloat("Max Render Distance", &max_render_distance);
-                ImGui::Checkbox("Show Lines", &render_lines);
-                ImGui::Checkbox("Show Wireframe", &render_wireframe);
+                ImGui::InputFloat("Dot Size", &dotSize);
+                ImGui::InputFloat("Max Render Distance", &maxRenderDistance);
+                ImGui::Checkbox("Show Lines", &showLines);
+                ImGui::Checkbox("Show Wireframe", &showWireframe);
                 ImGui::Unindent();
             }
             ImGui::Separator();
@@ -168,7 +168,7 @@ static void renderGUI()
 
             // Triangles Rendering
             ImGui::Text("Triangles");
-            ImGui::Checkbox("Show Triangles", &render_triangles);
+            ImGui::Checkbox("Show Triangles", &showTriangles);
             ImGui::Separator();
 
             ImGui::EndTabItem();
@@ -177,11 +177,11 @@ static void renderGUI()
 
         // RayTracing Tab
         if (ImGui::BeginTabItem("Ray Tracing")) {
-            show_raytracing_tab = true;
-            ImGui::Checkbox("Ray Tracing", &enable_ray_tracing);
-            if (enable_ray_tracing) {
-                ImGui::DragInt("Steps", &ray_tracing_steps, 0.5f, 0, 1000);
-                ImGui::Checkbox("Binary Search", &use_binary_search);
+            showRaytracingTab = true;
+            ImGui::Checkbox("Ray Tracing", &showRaytracing);
+            if (showRaytracing) {
+                ImGui::DragInt("Steps", &maxSteps, 0.5f, 0, 1000);
+                ImGui::Checkbox("Binary Search", &useBinarySearch);
             }
             ImGui::Separator();
             ImGui::EndTabItem();
