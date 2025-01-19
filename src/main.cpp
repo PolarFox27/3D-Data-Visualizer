@@ -30,14 +30,13 @@ const unsigned int QUAD_INDICES[] = {
         2, 3, 0   // Second Triangle
 };
 
-const float RAYTRACING_VERTICES[] = {
+const std::vector<float> RAYTRACING_VERTICES = {
     // Positions       // Texture Coords
     -1.0f, -1.0f, 0.0f,  0.0f, 0.0f,  // Bottom-left
      1.0f, -1.0f, 0.0f,  1.0f, 0.0f,  // Bottom-right
      1.0f,  1.0f, 0.0f,  1.0f, 1.0f,  // Top-right
     -1.0f,  1.0f, 0.0f,  0.0f, 1.0f   // Top-left
 };
-
 
 //===========================================================================
 
@@ -200,81 +199,21 @@ static int loadTriangleVertices(int width, int height, const std::vector<glm::ve
     return indices.size();
 }
 
-static int loadQuadVertices(const ImageData& data, GLuint* quadVAO, GLuint* quadVBO, GLuint* quadEBO) {
-    float offsetX = -0.5f * data.render_size / static_cast<float>(data.width);
-    float offsetZ = -0.5f * data.render_size / static_cast<float>(data.height);
-    float vertices[] = {
-        // Positions                                                                // Texture Coords
-        -0.5f * data.render_size + offsetX, 0.0f, -0.5f * data.render_size + offsetZ,  0.0f, 0.0f, // Bottom-left
-         0.5f * data.render_size + offsetX, 0.0f, -0.5f * data.render_size + offsetZ,  1.0f, 0.0f, // Bottom-right
-         0.5f * data.render_size + offsetX, 0.0f,  0.5f * data.render_size + offsetZ,  1.0f, 1.0f, // Top-right
-        -0.5f * data.render_size + offsetX, 0.0f, 0.5f * data.render_size + offsetZ,  0.0f, 1.0f  // Top-left
-    };
-    unsigned int indices[] = {
-        0, 1, 2,  // First Triangle
-        2, 3, 0   // Second Triangle
-    };
 
-    // Clean previous VAO and VBO
-    glDeleteVertexArrays(1, quadVAO);
-    glDeleteBuffers(1, quadVBO);
-    glDeleteBuffers(1, quadEBO);
+static void loadQuadVertices(GLuint& VAO, GLuint& VBO, GLuint& EBO, const std::vector<float>& vertices) {
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glGenBuffers(1, &EBO);
 
-    // Generate new VAO and VBO
-    glGenVertexArrays(1, quadVAO);
-    glGenBuffers(1, quadVBO);
-    glGenBuffers(1, quadEBO);
-
-    // Bind VAO
-    glBindVertexArray(*quadVAO);
-
-    // Bind and set VBO data
-    glBindBuffer(GL_ARRAY_BUFFER, *quadVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    // Bind and set EBO data
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, *quadEBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-
-    // Vertex attribute: positions
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    // Vertex attribute: texture coordinates
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-
-    glBindVertexArray(0); // Unbind VAO
-    return 6;
-}
-
-static void loadRaytracingVertices(GLuint& raytracingVAO, GLuint& raytracingVBO, GLuint& raytracingEBO) {
-    float quadVertices[] = {
-        // Positions       // Texture Coords
-        -1.0f, -1.0f, 0.0f,  0.0f, 0.0f,  // Bottom-left
-         1.0f, -1.0f, 0.0f,  1.0f, 0.0f,  // Bottom-right
-         1.0f,  1.0f, 0.0f,  1.0f, 1.0f,  // Top-right
-        -1.0f,  1.0f, 0.0f,  0.0f, 1.0f   // Top-left
-    };
-
-    unsigned int indices[] = {
-        0, 1, 2,  // First triangle
-        2, 3, 0   // Second triangle
-    };
-
-    glGenVertexArrays(1, &raytracingVAO);
-    glGenBuffers(1, &raytracingVBO);
-    glGenBuffers(1, &raytracingEBO);
-
-    glBindVertexArray(raytracingVAO);
+    glBindVertexArray(VAO);
 
     // Set up VBO
-    glBindBuffer(GL_ARRAY_BUFFER, raytracingVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * vertices.size(), vertices.data(), GL_STATIC_DRAW);
 
     // Set up EBO
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, raytracingEBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(QUAD_INDICES), QUAD_INDICES, GL_STATIC_DRAW);
 
     // Position attribute
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
@@ -287,6 +226,19 @@ static void loadRaytracingVertices(GLuint& raytracingVAO, GLuint& raytracingVBO,
     // Unbind
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+}
+
+static void loadFlatQuadVertices(const ImageData& data, GLuint& quadVAO, GLuint& quadVBO, GLuint& quadEBO) {
+    float offsetX = -0.5f * data.render_size / static_cast<float>(data.width);
+    float offsetZ = -0.5f * data.render_size / static_cast<float>(data.height);
+    std::vector<float> vertices = {
+        // Positions                                                                // Texture Coords
+        -0.5f * data.render_size + offsetX, 0.0f, -0.5f * data.render_size + offsetZ,  0.0f, 0.0f, // Bottom-left
+         0.5f * data.render_size + offsetX, 0.0f, -0.5f * data.render_size + offsetZ,  1.0f, 0.0f, // Bottom-right
+         0.5f * data.render_size + offsetX, 0.0f,  0.5f * data.render_size + offsetZ,  1.0f, 1.0f, // Top-right
+        -0.5f * data.render_size + offsetX, 0.0f, 0.5f * data.render_size + offsetZ,  0.0f, 1.0f  // Top-left
+    };
+    loadQuadVertices(quadVAO, quadVBO, quadEBO, vertices);
 }
 
 static void loadLightsToUBO(const std::vector<Light>& lightArray, GLuint UBO) {
@@ -462,10 +414,10 @@ int main(int argc, char** argv)
 
     // Quad Texture and Vertices
     heightMapTexture = createTexture(image_data);
-    loadQuadVertices(image_data, &quadVAO, &quadVBO, &quadEBO);
+    loadFlatQuadVertices(image_data, quadVAO, quadVBO, quadEBO);
 
     // RayTracing
-    loadRaytracingVertices(raytracingVAO, raytracingVBO, raytracingEBO);
+    loadQuadVertices(raytracingVAO, raytracingVBO, raytracingEBO, RAYTRACING_VERTICES);
     glm::vec3 aabbMin, aabbMax;
     computeAABB(image_data, minHeight, maxHeight, aabbMin, aabbMax);
 
@@ -514,7 +466,7 @@ int main(int argc, char** argv)
             loadDotVertices(vertices, &dotVAO, &dotVBO);
             wireframeVerticesAmount = loadWireframeVertices(image_data.width, image_data.height, vertices, &wireframeVAO, &wireframeVBO, &wireframeEBO);
             triangleVerticesAmount = loadTriangleVertices(image_data.width, image_data.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO);
-            loadQuadVertices(image_data, &quadVAO, &quadVBO, &quadEBO);
+            loadFlatQuadVertices(image_data, quadVAO, quadVBO, quadEBO);
             computeAABB(image_data, minHeight, maxHeight, aabbMin, aabbMax);
         }
 

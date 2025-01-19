@@ -50,10 +50,11 @@ static void printHelp()
     std::cout << "TAB -> show/hide menu" << std::endl;
     std::cout << "H   -> show help" << std::endl;
     std::cout << "______________________" << std::endl << std::endl;
+    std::cout << "C       -> apply the next color map" << std::endl;
     std::cout << "L       -> place the light source at the current camera position" << std::endl;
     std::cout << "Shift+L -> add an additional light source at the current camera position" << std::endl;
-    std::cout << "+       -> choose next light source" << std::endl;
-    std::cout << "-       -> choose previous light source" << std::endl;
+    std::cout << "Down    -> choose next light source" << std::endl;
+    std::cout << "Up      -> choose previous light source" << std::endl;
     std::cout << "DEL     -> delete selected light source" << std::endl;
     std::cout << "N       -> clear all light sources and reinitialize with one" << std::endl;
     std::cout << "______________________" << std::endl << std::endl;
