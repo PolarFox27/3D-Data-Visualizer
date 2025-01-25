@@ -22,16 +22,17 @@ float computeGaussianWeight(float x, float sigma) {
 void main() {
     float sigma = float(size) / 2.0;
     float totalWeight = 0.0;
-    vec3 color = vec3(0.0);
+    float height = 0.0;
+    vec4 currentColor = texture(inputTexture, TexCoord);
 
     // Compute the weighted sum of colors of the surrounding coords
     for (int i = -size; i <= size; ++i) {
         float weight = computeGaussianWeight(float(i), sigma);
         vec2 offset = direction * float(i);
-        color += texture(inputTexture, TexCoord + offset).rgb * weight;
+        height += texture(inputTexture, TexCoord + offset).y * weight;
         totalWeight += weight;
     }
 
     // Returns the weighted sum of the colors
-    FragColor = vec4(color / totalWeight, 1.0);
+    FragColor = vec4(currentColor.x, height / totalWeight, currentColor.y, 1.0);
 }

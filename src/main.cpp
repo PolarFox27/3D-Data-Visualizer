@@ -292,14 +292,15 @@ static void loadLightsToUBO(const std::vector<Light>& lightArray, GLuint UBO) {
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
-static GLuint createEdgeMapTexture(const ImageData& data) {
+static GLuint createEdgeMapTexture(const ImageData& data, const int smallGaussianFilterSize, const int largeGaussianFilterSize) {
+    auto start = std::chrono::high_resolution_clock::now();
     GLuint pingpongFBO[5], pingpongTextures[5];
-    unsigned int smallSize = 5, bigSize = 20;
-    glm::vec2 horizontalDir(1.0f, 0.0f), verticalDir(0.0f, 1.0f);
+    glm::vec2 horizontalDir(1.0f / static_cast<float>(data.width), 0.0f), verticalDir(0.0f, 1.0f / static_cast<float>(data.height));
     glGenFramebuffers(5, pingpongFBO);
     glGenTextures(5, pingpongTextures);
     glViewport(0, 0, data.width, data.height);
     
+    // Creation of 5 frame buffers
     for (int i = 0; i < 5; i++) {
         glBindTexture(GL_TEXTURE_2D, pingpongTextures[i]);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, data.width, data.height, 0, GL_RGB, GL_UNSIGNED_SHORT, nullptr);
@@ -310,13 +311,15 @@ static GLuint createEdgeMapTexture(const ImageData& data) {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 
+    // 2 Gaussian filters in 2 passes
     for (int i = 0; i < 4; i++) {
         GLuint texture = (i % 2 == 0) ? heightMapTexture : pingpongTextures[i - 1];
+        glm::vec2 direction = (i % 2 == 0) ? horizontalDir : verticalDir;
         glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[i]);
         gaussianBlurShader.bind();
         glUniform1i(gaussianBlurShader.getUniformLocation("inputTexture"), 0);
-        glUniform2fv(gaussianBlurShader.getUniformLocation("direction"), 1, glm::value_ptr((i%2 == 0) ? horizontalDir : verticalDir));
-        glUniform1i(gaussianBlurShader.getUniformLocation("size"), (i/2 == 0) ? smallSize : bigSize);
+        glUniform2f(gaussianBlurShader.getUniformLocation("direction"), direction.x, direction.y);
+        glUniform1i(gaussianBlurShader.getUniformLocation("size"), (i/2 == 0) ? smallGaussianFilterSize : largeGaussianFilterSize);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);
         glBindVertexArray(raytracingVAO);
@@ -324,20 +327,35 @@ static GLuint createEdgeMapTexture(const ImageData& data) {
         glBindVertexArray(0);
     }
 
-    // Create a new texture (text1) from fbo2
-    GLuint textureOriginal;
-    glGenTextures(1, &textureOriginal);
-    glBindTexture(GL_TEXTURE_2D, textureOriginal);
+    // Final edge map texture
+    glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[4]);
+    edgeDetectionShader.bind();
+    glUniform1i(edgeDetectionShader.getUniformLocation("originalBlurredTexture"), 0);
+    glUniform1i(edgeDetectionShader.getUniformLocation("largeBlurredTexture"), 1);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, pingpongTextures[1]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, pingpongTextures[3]);
+    glBindVertexArray(raytracingVAO);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
+
+    // Create final texture from the last frame buffer
+    GLuint finalTexture;
+    glGenTextures(1, &finalTexture);
+    glBindTexture(GL_TEXTURE_2D, finalTexture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, data.width, data.height, 0, GL_RGB, GL_UNSIGNED_SHORT, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[1]);
+    glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[4]);
     glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, data.width, data.height, 0);
 
-    // Cleanup and unbind
+    // Cleanup
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, WIDTH, HEIGHT);
-    return textureOriginal;
+    auto end = std::chrono::high_resolution_clock::now();
+    printElapsedTime(start, end, "Edge Map Creation");
+    return finalTexture;
 }
 
 //===========================================================================
@@ -460,6 +478,7 @@ int main(int argc, char** argv)
     readInitialConfig(TRACKBALL, imageData, colorMaps, lights);
     renderHeight = imageData.renderHeight;
     renderSize = imageData.renderSize;
+    int largeBlurSize = edgeLargeBlurSize, smallBlurSize = edgeSmallBlurSize;
     maxRenderDistance = renderSize;
     WINDOW->registerKeyCallback(keyPressedHandler);
 
@@ -515,7 +534,7 @@ int main(int argc, char** argv)
     // Compute normal and edge maps
     normals = computeNormalMap(imageData, vertices, derivatives);
     normalMapTexture = createNormalTexture(imageData, normals);
-    edgeMapTexture = createEdgeMapTexture(imageData);
+    edgeMapTexture = createEdgeMapTexture(imageData, smallBlurSize, largeBlurSize);
 
 
     // Light VAO and VBO
@@ -553,13 +572,19 @@ int main(int argc, char** argv)
             vertices = loadVertices(imageData, aabbMin, aabbMax);
             normals = computeNormalMap(imageData, vertices, derivatives);
             normalMapTexture = createNormalTexture(imageData, normals);
-            edgeMapTexture = createEdgeMapTexture(imageData);
+            edgeMapTexture = createEdgeMapTexture(imageData, smallBlurSize, largeBlurSize);
             loadDotVertices(vertices, &dotVAO, &dotVBO);
             wireframeVerticesAmount = loadWireframeVertices(imageData.width, imageData.height, vertices, &wireframeVAO, &wireframeVBO, &wireframeEBO);
             triangleVerticesAmount = loadTriangleVertices(imageData.width, imageData.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO);
             loadFlatQuadVertices(imageData, quadVAO, quadVBO, quadEBO);
         }
 
+        if (smallBlurSize != edgeSmallBlurSize || largeBlurSize != edgeLargeBlurSize) {
+            smallBlurSize = edgeSmallBlurSize;
+            largeBlurSize = edgeLargeBlurSize;
+            edgeMapTexture = createEdgeMapTexture(imageData, smallBlurSize, largeBlurSize);
+        }
+      
         // Compute distance to camera
         const glm::vec3 cameraPos = TRACKBALL->position();
 

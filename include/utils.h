@@ -35,7 +35,7 @@ enum class RenderingMode {
     FixedColor = 0,
     Gradient = 1,
     Slope = 2,
-    SecondDerivative = 3
+    Edges = 3
 };
 
 // Pixels and Image Data

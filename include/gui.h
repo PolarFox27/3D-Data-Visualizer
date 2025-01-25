@@ -10,6 +10,8 @@ bool showGui = true;
 bool showRaytracingTab = false;
 float renderHeight = 5.0f;
 float renderSize = 20.0f;
+int edgeSmallBlurSize = 10;
+int edgeLargeBlurSize = 100;
 
 // Quad
 bool showFlatQuad = false;
@@ -137,6 +139,11 @@ static void renderGUI()
     int current_renderMode = static_cast<int>(renderMode);
     ImGui::Combo("Render Mode", &current_renderMode, renderMode_names.data(), (int)renderMode_names.size());
     renderMode = static_cast<RenderingMode>(current_renderMode);
+
+    if (renderMode == RenderingMode::Edges) {
+        ImGui::InputInt("Large Gaussian Radius", &edgeLargeBlurSize);
+        ImGui::InputInt("Small Gaussian Radius", &edgeSmallBlurSize);
+    }
     ImGui::Separator();
 
     // Tabs
