@@ -12,6 +12,7 @@ float renderHeight = 5.0f;
 float renderSize = 20.0f;
 int edgeSmallBlurSize = 10;
 int edgeLargeBlurSize = 100;
+bool showColorMap = true;
 
 // Quad
 bool showFlatQuad = false;
@@ -131,6 +132,7 @@ static void renderGUI()
 
     // Base Parameters
     ImGui::Text("Base Parameters");
+    ImGui::Checkbox("Show Color Map", &showColorMap);
     ImGui::InputFloat("Width", &renderSize);
     ImGui::InputFloat("Height", &renderHeight);
 

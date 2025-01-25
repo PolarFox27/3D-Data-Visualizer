@@ -9,6 +9,7 @@ GLuint raytracingVAO, raytracingVBO, raytracingEBO;
 GLuint lightUBO;
 GLuint lightVAO, lightVBO;
 GLuint quadVAO, quadVBO, quadEBO;
+GLuint colormapVAO, colormapVBO, colormapEBO;
 GLuint edgeDetectionVAO, edgeDetectionVBO, edgeDetectionEBO;
 GLuint heightMapTexture, normalMapTexture, colorMapTexture, edgeMapTexture;
 
@@ -29,6 +30,7 @@ Shader lineShader;
 Shader raytracingShader;
 Shader gaussianBlurShader;
 Shader edgeDetectionShader;
+Shader colormapVisualizationShader;
 
 
 const unsigned int QUAD_INDICES[] = {
@@ -42,6 +44,14 @@ const std::vector<float> RAYTRACING_VERTICES = {
      1.0f, -1.0f, 0.0f,  1.0f, 0.0f,  // Bottom-right
      1.0f,  1.0f, 0.0f,  1.0f, 1.0f,  // Top-right
     -1.0f,  1.0f, 0.0f,  0.0f, 1.0f   // Top-left
+};
+
+const std::vector<float> COLORMAP_VERTICES = {
+    // Positions           // Texture Coords
+    -0.95f, -0.95f, 0.0f,  0.0f, 0.0f,  // Bottom-left
+    -0.75f, -0.95f, 0.0f,  1.0f, 0.0f,  // Bottom-right
+    -0.75f, -0.90f, 0.0f,  1.0f, 1.0f,  // Top-right
+    -0.95f, -0.90f, 0.0f,  0.0f, 1.0f   // Top-left
 };
 
 //===========================================================================
@@ -510,6 +520,9 @@ int main(int argc, char** argv)
     edgeDetectionShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/raytracing_vertex.glsl")
         .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/edge_detection_frag.glsl")
         .build();
+    colormapVisualizationShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/raytracing_vertex.glsl")
+        .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/quad_frag.glsl")
+        .build();
 
 
     // Create color map texture
@@ -521,6 +534,7 @@ int main(int argc, char** argv)
 
     // RayTracing
     loadQuadVertices(raytracingVAO, raytracingVBO, raytracingEBO, RAYTRACING_VERTICES);
+    loadQuadVertices(colormapVAO, colormapVBO, colormapEBO, COLORMAP_VERTICES);
 
     // Create dot cloud + wireframe vertices
     vertices = loadVertices(imageData, aabbMin, aabbMax);
@@ -635,7 +649,7 @@ int main(int argc, char** argv)
             // Draw Flat Image
             if (showFlatQuad) {
                 quadShader.bind();
-                glUniform1i(quadShader.getUniformLocation("heightMap"), 0); // Pass texture unit 0
+                glUniform1i(quadShader.getUniformLocation("inputTexture"), 0); // Pass texture unit 0
                 glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
                 glUniform1f(quadShader.getUniformLocation("height"), height);
 
@@ -727,6 +741,17 @@ int main(int argc, char** argv)
             glDrawArrays(GL_POINTS, 0, 1);
             glBindVertexArray(0);
 
+        }
+
+        //Show Colormap visualization
+        if (showColorMap) {
+            colormapVisualizationShader.bind();
+            glUniform1i(colormapVisualizationShader.getUniformLocation("inputTexture"), 2); // Pass texture unit 2 : colormap
+
+            // Render the quad
+            glBindVertexArray(colormapVAO);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+            glBindVertexArray(0);
         }
 
         // Present result to the screen.

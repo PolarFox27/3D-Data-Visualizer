@@ -4,7 +4,7 @@
 in vec2 TexCoord;
 
 // Shader Parameter : Texture
-uniform sampler2D heightMap;
+uniform sampler2D inputTexture;
 
 // Output: Fragment Color
 out vec4 outColor;
@@ -12,5 +12,5 @@ out vec4 outColor;
 
 void main() {
     // Output fragment color based on the texture and the coordinates.
-    outColor = texture(heightMap, TexCoord);
+    outColor = texture(inputTexture, TexCoord);
 }
