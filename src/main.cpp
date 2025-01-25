@@ -16,8 +16,6 @@ GLuint heightMapTexture, normalMapTexture, colorMapTexture, edgeMapTexture;
 int dotAmount, wireframeVerticesAmount, triangleVerticesAmount;
 std::vector<glm::vec3> vertices;
 std::vector<glm::vec3> normals;
-std::vector<glm::vec4> derivatives;         // stores for each dot : (xPos, zPos, xDerivative, zDerivative)
-std::vector<glm::vec4> secondDerivatives;   // stores for each dot: (x'', z'', x'z', z'x')
 glm::vec3 aabbMin, aabbMax;
 
 
@@ -141,12 +139,10 @@ static std::vector<glm::vec3> loadVertices(const ImageData& data, glm::vec3& aab
     return vertices;
 }
 
-static std::vector<glm::vec3> computeNormalMap(const ImageData& data, const std::vector<glm::vec3>& vertices, std::vector<glm::vec4>& derivatives) {
+static std::vector<glm::vec3> computeNormalMap(const ImageData& data, const std::vector<glm::vec3>& vertices) {
     auto start = std::chrono::high_resolution_clock::now();
     std::vector<glm::vec3> normalMap;
     normalMap.reserve(data.width * data.height);
-    derivatives = std::vector<glm::vec4>{};
-    derivatives.reserve(data.width * data.height);
     for (int z = 0; z < data.height; ++z) {
         for (int x = 0; x < data.width; ++x) {
             const glm::vec3 current = getVertexFromPixel(data, x, z);
@@ -158,35 +154,11 @@ static std::vector<glm::vec3> computeNormalMap(const ImageData& data, const std:
             float xDerivative = (x2.y - x1.y) / (x2.x - x1.x);
             float zDerivative = (z2.y - z1.y) / (z2.z - z1.z);
             normalMap.push_back(glm::normalize(glm::vec3(-xDerivative, 1, -zDerivative)));
-            derivatives.push_back(glm::vec4(current.x, current.z, xDerivative, zDerivative));
         }
     }
     auto end = std::chrono::high_resolution_clock::now();
     printElapsedTime(start, end, "Creation of normal map");
     return normalMap;
-}
-
-static std::vector<glm::vec4> computeSecondDerivativeMap(const ImageData& data, const std::vector<glm::vec4>& derivatives) {
-    auto start = std::chrono::high_resolution_clock::now();
-    std::vector<glm::vec4> secondDerivatives;
-    secondDerivatives.reserve(data.width * data.height);
-    for (int z = 0; z < data.height; ++z) {
-        for (int x = 0; x < data.width; ++x) {
-            const glm::vec4 x1 = x > 0 ? derivatives[z * data.width + x - 1] : derivatives[z * data.width + x];
-            const glm::vec4 x2 = (x + 1) < data.width ? derivatives[z * data.width + x + 1] : derivatives[z * data.width + x];
-            const glm::vec4 z1 = z > 0 ? derivatives[(z-1) * data.width + x] : derivatives[z * data.width + x];
-            const glm::vec4 z2 = (z + 1) < data.height ? derivatives[(z+1) * data.width + x] : derivatives[z * data.width + x];
-
-            float xxDerivative = (x2.z - x1.z) / (x2.x - x1.x);
-            float zzDerivative = (z2.w - z1.w) / (z2.y - z1.y);
-            float xzDerivative = (z2.z - z1.z) / (z2.y - z1.y);
-            float zxDerivative = (x2.w - x1.w) / (x2.y - x1.y);
-            secondDerivatives.push_back(glm::vec4(xxDerivative, zzDerivative, xzDerivative, zxDerivative));
-        }
-    }
-    auto end = std::chrono::high_resolution_clock::now();
-    printElapsedTime(start, end, "Creation of second derivatives map");
-    return secondDerivatives;
 }
 
 static void loadDotVertices(const std::vector<glm::vec3>& vertices, GLuint* dotVAO, GLuint* dotVBO) {
@@ -363,6 +335,8 @@ static GLuint createEdgeMapTexture(const ImageData& data, const int smallGaussia
     // Cleanup
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, WIDTH, HEIGHT);
+    glDeleteBuffers(5, pingpongFBO);
+    glDeleteTextures(5, pingpongTextures);
     auto end = std::chrono::high_resolution_clock::now();
     printElapsedTime(start, end, "Edge Map Creation");
     return finalTexture;
@@ -546,7 +520,7 @@ int main(int argc, char** argv)
     triangleVerticesAmount = loadTriangleVertices(imageData.width, imageData.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO);
 
     // Compute normal and edge maps
-    normals = computeNormalMap(imageData, vertices, derivatives);
+    normals = computeNormalMap(imageData, vertices);
     normalMapTexture = createNormalTexture(imageData, normals);
     edgeMapTexture = createEdgeMapTexture(imageData, smallBlurSize, largeBlurSize);
 
@@ -584,7 +558,7 @@ int main(int argc, char** argv)
             imageData.renderHeight = renderHeight;
             imageData.renderSize = renderSize;
             vertices = loadVertices(imageData, aabbMin, aabbMax);
-            normals = computeNormalMap(imageData, vertices, derivatives);
+            normals = computeNormalMap(imageData, vertices);
             normalMapTexture = createNormalTexture(imageData, normals);
             edgeMapTexture = createEdgeMapTexture(imageData, smallBlurSize, largeBlurSize);
             loadDotVertices(vertices, &dotVAO, &dotVBO);
@@ -765,16 +739,19 @@ int main(int argc, char** argv)
     glDeleteBuffers(1, &wireframeVBO);
     glDeleteBuffers(1, &triangleVBO);
     glDeleteBuffers(1, &raytracingVBO);
+    glDeleteBuffers(1, &colormapVBO);
     glDeleteBuffers(1, &quadEBO);
     glDeleteBuffers(1, &wireframeEBO);
     glDeleteBuffers(1, &triangleEBO);
     glDeleteBuffers(1, &raytracingEBO);
+    glDeleteBuffers(1, &colormapEBO);
     glDeleteVertexArrays(1, &lightVAO);
     glDeleteVertexArrays(1, &dotVAO);
     glDeleteVertexArrays(1, &quadVAO);
     glDeleteVertexArrays(1, &wireframeVAO);
     glDeleteVertexArrays(1, &triangleVAO);
     glDeleteVertexArrays(1, &raytracingVAO);
+    glDeleteVertexArrays(1, &colormapVAO);
     glDeleteBuffers(1, &lightUBO);
 
     return 0;
