@@ -133,7 +133,7 @@ static void renderGUI()
     ImGui::InputFloat("Height", &renderHeight);
 
     // Dropdown for render mode
-    std::array renderMode_names{ "Fixed Color", "Height Gradient", "Slope Gradient"};
+    std::array renderMode_names{ "Fixed Color", "Height Gradient", "Slope Gradient", "Valley And Peak Indicator"};
     int current_renderMode = static_cast<int>(renderMode);
     ImGui::Combo("Render Mode", &current_renderMode, renderMode_names.data(), (int)renderMode_names.size());
     renderMode = static_cast<RenderingMode>(current_renderMode);

@@ -4,17 +4,18 @@
 in vec2 TexCoord;
 
 // Shader Parameters
-uniform sampler2D heightMap;        // Height map texture
-uniform sampler2D normalMap;        // Normal map texture
-uniform sampler2D colorMap;         // Color map texture
-uniform vec3 aabbMin;               // corner 1 of the terrain bounding box
-uniform vec3 aabbMax;               // corner 2 of the terrain bounding box
-uniform int maxSteps;               // the amount of steps to perform during ray marching
-uniform mat4 mvp;                   // MVP matrix
-uniform int lightAmount;            // amount of lights
-uniform int mode;                   // render mode
-uniform float renderHeight;         // the maximum render height for a pixel
-uniform bool binarySearch;          // whether to use binary search
+uniform sampler2D heightMap;                // Height map texture
+uniform sampler2D normalMap;                // Normal map texture
+uniform sampler2D colorMap;                 // Color map texture
+uniform sampler2D edgeMap;                  // Edge map texture for valleys and peaks
+uniform vec3 aabbMin;                       // corner 1 of the terrain bounding box
+uniform vec3 aabbMax;                       // corner 2 of the terrain bounding box
+uniform int maxSteps;                       // the amount of steps to perform during ray marching
+uniform mat4 mvp;                           // MVP matrix
+uniform int lightAmount;                    // amount of lights
+uniform int mode;                           // render mode
+uniform float renderHeight;                 // the maximum render height for a pixel
+uniform bool binarySearch;                  // whether to use binary search
 
 layout(std140) uniform LightData {
     vec4 lightPos[20];                // Array of max 20 Lights. (vec4 is used for memory alignment)
@@ -76,6 +77,12 @@ vec3 getTerrainNormalAtPos(vec3 pos) {
     return texture(normalMap, uv).xyz;
 }
 
+// Compute the edge from the edge map.
+vec3 getEdgeAtPos(vec3 pos) {
+    vec2 uv = (pos.xz - aabbMin.xz) / (aabbMax.xz - aabbMin.xz);
+    return texture(edgeMap, uv).xyz;
+}
+
 // Compute the ray attributes for the ray tracing based on the texture coordinates.
 void computeRayAttributes(out vec3 origin, out vec3 direction){
     // Find pixel position in the near clipping plane.
@@ -124,6 +131,10 @@ vec3 computeColorAtPos(vec3 pos){
             vec3 normal = getTerrainNormalAtPos(pos);
             float value = 1.0 - abs(dot(normal, vec3(0, 1, 0)));
             surfaceColor = computeGradient(value, 0.0, 1.0);
+            break;
+
+        case 3: // Mode 3 : Different colors for peaks and valleys
+            surfaceColor = computeGradient(getEdgeAtPos(pos).y, 0, 1);
             break;
             
         default: // Mode 0 : Fixed color
