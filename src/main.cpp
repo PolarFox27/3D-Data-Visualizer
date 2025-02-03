@@ -1,5 +1,6 @@
 #include <gui.h>
 
+
 //=============================OpenGL Variables==============================
 
 GLuint dotVAO, dotVBO;
@@ -623,7 +624,7 @@ int main(int argc, char** argv)
             // Draw Flat Image
             if (showFlatQuad) {
                 quadShader.bind();
-                glUniform1i(quadShader.getUniformLocation("inputTexture"), 0); // Pass texture unit 0
+                glUniform1i(quadShader.getUniformLocation("inputTexture"), 3); // Pass texture unit 0
                 glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
                 glUniform1f(quadShader.getUniformLocation("height"), height);
 

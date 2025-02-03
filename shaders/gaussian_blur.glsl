@@ -15,7 +15,7 @@ const float PI = 3.14159265359;     // PI constant value
 
 // Method to compute the gaussian weight 
 float computeGaussianWeight(float x, float sigma) {
-    return exp(-(x * x) / (2.0 * sigma * sigma)) / (sqrt(2.0 * PI) * sigma);
+    return exp(-(x * x) / (2.0 * sigma * sigma));
 }
 
 

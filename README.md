@@ -44,7 +44,7 @@ It has a 4 different parts:
 
 ### 2. User Interface
 
-![Image](./images/menu.png)
+
 
 ### 3. Navigation and Keyboard Shortcuts
 

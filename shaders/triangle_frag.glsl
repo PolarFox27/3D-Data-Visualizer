@@ -70,7 +70,7 @@ void main() {
             break;
 
         case 3: // Mode 3 : Different colors for peaks and valleys
-            surfaceColor = computeGradient(getEdgeAtPos(pos).y, 1, 0);
+            surfaceColor = computeGradient(getEdgeAtPos(pos).y, 0.2, 0);
             break;
             
         default: // Mode 0 : Fixed color

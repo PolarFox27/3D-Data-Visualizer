@@ -6,37 +6,37 @@
 //==============================Configuration================================
 
 // General
-bool showGui = true;
-bool showRaytracingTab = false;
-float renderHeight = 5.0f;
-float renderSize = 20.0f;
-int edgeSmallBlurSize = 10;
-int edgeLargeBlurSize = 100;
-bool showColorMap = true;
+bool showGui = true;                // Show the menu
+bool showRaytracingTab = false;     // Wether the rasterization or ray tracing tab is active
+float renderHeight = 5.0f;          // Current data render height
+float renderSize = 20.0f;           // Current data render width
+int edgeSmallBlurSize = 10;         // Small gaussian radius for edge detection
+int edgeLargeBlurSize = 100;        // Large gaussian radius for edge detection
+bool showColorMap = true;           // Show the active color map in the corner of the screen
 
 // Quad
-bool showFlatQuad = false;
-float height = 0.0f;
+bool showFlatQuad = false;          // Show the image as a flat plane
+float height = 0.0f;                // Height at which the flat plane is rendered
 
 // Dots
-bool showDots = false;
-bool showLines = false;
-bool showWireframe = false;
-float dotSize = 2.0f;
-float maxRenderDistance = 20.0f;
-RenderingMode renderMode = RenderingMode::FixedColor;
+bool showDots = false;              // Show the dot cloud
+bool showLines = false;             // Show the vertical lines
+bool showWireframe = false;         // Show the wireframe
+float dotSize = 2.0f;               // Dot render size
+float maxRenderDistance = 20.0f;    // Maximum distance at which dots should be visible
+RenderingMode renderMode = RenderingMode::FixedColor;   // Render mode
 
 // Triangles
-bool showTriangles = false;
+bool showTriangles = false;         // Show triangles between vertices
 
 // Lights
-std::vector<Light> lights{};
-size_t selectedLightIndex = 0;
+std::vector<Light> lights{};        // List of light sources
+size_t selectedLightIndex = 0;      // Index of the currently selected light
 
 // Ray Tracing
-bool showRaytracing = false;
-int maxSteps = 100;
-bool useBinarySearch = false;
+bool showRaytracing = false;        // Show the data using ray tracing
+int maxSteps = 100;                 // Amount of ray tracing steps
+bool useBinarySearch = false;       // Whether binary search is used to get a cleaner result
 
 //===========================================================================
 

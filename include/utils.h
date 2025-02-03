@@ -48,10 +48,10 @@ struct Pixel {
 // Image Data
 struct ImageData {
     std::vector<Pixel> pixels;         // The image pixel data
-    int width = 0;                     // The image width (in pixels)
+    int width = 0;                     // The image width  (in pixels)
     int height = 0;                    // The image height (in pixels)
-    float renderSize = 1.0f;          // The dot cloud render width
-    float renderHeight = 1.0f;        // The dot cloud render height
+    float renderSize = 1.0f;           // The dot cloud render width  (from the TOML config)
+    float renderHeight = 1.0f;         // The dot cloud render height (from the TOML config)
 };
 
 // Light
@@ -64,14 +64,14 @@ struct Light {
 
 
 // GLOBAL VARIABLES
-const int WIDTH = 1200;
-const int HEIGHT = 800;
-const int MAX_LIGHT_AMOUNT = 20;
-ImageData imageData;
-std::vector<ImageData> colorMaps;
-int activeColorMap = 0;
-Window* WINDOW;
-Trackball* TRACKBALL;
+const int WIDTH = 1200;             // Program window width          
+const int HEIGHT = 800;             // Program window height     
+const int MAX_LIGHT_AMOUNT = 20;    // Max amount of light sources in the scene
+ImageData imageData;                // image data for the 3D visualization
+std::vector<ImageData> colorMaps;   // list of color maps images
+int activeColorMap = 0;             // index of the color map currently in use
+Window* WINDOW;                     // Pointer to the GL window
+Trackball* TRACKBALL;               // Pointer to the camera trackball
 
 
 
@@ -263,3 +263,4 @@ static glm::vec3 getVertexFromPixel(const ImageData& data, int x, int z) {
 }
 
 //===========================================================================
+
