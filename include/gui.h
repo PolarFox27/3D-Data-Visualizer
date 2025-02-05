@@ -1,7 +1,7 @@
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_opengl2.h>
-#include <utils.h>
+#include <glutils.h>
 
 //==============================Configuration================================
 
@@ -115,8 +115,103 @@ static void printElapsedTime(std::chrono::time_point<std::chrono::high_resolutio
     }
 }
 
-//===========================================================================
+static void loadNextColorMap() {
+    activeColorMap = (activeColorMap + 1) % colorMaps.size();
+    colorMapTexture = createTexture(colorMaps[activeColorMap]);
+}
 
+// Key Pressed Handler
+static void keyPressedHandler(int key, int /* scancode */, int action, int /* mods */) {
+    if (key == GLFW_KEY_TAB && action == GLFW_PRESS) {
+        showGui = !showGui;
+    }
+
+    if (action != GLFW_RELEASE)
+        return;
+
+    const bool shiftPressed = WINDOW->isKeyPressed(GLFW_KEY_LEFT_SHIFT) || WINDOW->isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
+
+    switch (key) {
+    case GLFW_KEY_H: {
+        printHelp();
+        return;
+    }
+    case GLFW_KEY_L: {
+        if (shiftPressed)
+            lights.push_back(Light{ TRACKBALL->position(), glm::vec3(1) });
+        else
+            lights[selectedLightIndex].position = TRACKBALL->position();
+        return;
+    }
+    case GLFW_KEY_UP: {
+        selectPreviousLight();
+        return;
+    }
+    case GLFW_KEY_DOWN: {
+        selectNextLight();
+        return;
+    }
+    case GLFW_KEY_N: {
+        resetLights();
+        return;
+    }
+    case GLFW_KEY_DELETE: {
+        deleteLight();
+        return;
+    }
+    case GLFW_KEY_C: {
+        loadNextColorMap();
+        return;
+    }
+    case GLFW_KEY_R: {
+        if (shiftPressed) { // If shift pressed, decrease selected light red channel by 0.1
+            if (lights[selectedLightIndex].color.x >= 0.1f)
+                lights[selectedLightIndex].color.x -= 0.1f;
+        }
+        else { // Else, increase selected light red channel by 0.1
+            if (lights[selectedLightIndex].color.x <= 0.9f)
+                lights[selectedLightIndex].color.x += 0.1f;
+        }
+        std::cout << "Light " << selectedLightIndex << " color : [" << lights[selectedLightIndex].color.x << ", "
+            << lights[selectedLightIndex].color.y << ", "
+            << lights[selectedLightIndex].color.z << "]"
+            << std::endl;
+        return;
+    }
+    case GLFW_KEY_G: {
+        if (shiftPressed) { // If shift pressed, decrease selected light green channel by 0.1
+            if (lights[selectedLightIndex].color.y >= 0.1f)
+                lights[selectedLightIndex].color.y -= 0.1f;
+        }
+        else { // Else, increase selected light green channel by 0.1
+            if (lights[selectedLightIndex].color.y <= 0.9f)
+                lights[selectedLightIndex].color.y += 0.1f;
+        }
+        std::cout << "Light " << selectedLightIndex << " color : [" << lights[selectedLightIndex].color.x << ", "
+            << lights[selectedLightIndex].color.y << ", "
+            << lights[selectedLightIndex].color.z << "]"
+            << std::endl;
+        return;
+    }
+    case GLFW_KEY_B: {
+        if (shiftPressed) { // If shift pressed, decrease selected light blue channel by 0.1
+            if (lights[selectedLightIndex].color.z >= 0.1f)
+                lights[selectedLightIndex].color.z -= 0.1f;
+        }
+        else { // Else, increase selected light blue channel by 0.1
+            if (lights[selectedLightIndex].color.z <= 0.9f)
+                lights[selectedLightIndex].color.z += 0.1f;
+        }
+        std::cout << "Light " << selectedLightIndex << " color : [" << lights[selectedLightIndex].color.x << ", "
+            << lights[selectedLightIndex].color.y << ", "
+            << lights[selectedLightIndex].color.z << "]"
+            << std::endl;
+        return;
+    }
+    default:
+        return;
+    };
+}
 
 // Draws the UI menu
 static void renderGUI()
@@ -222,3 +317,5 @@ static void renderGUI()
     ImGui::End();
     ImGui::Render();
 }
+
+//===========================================================================

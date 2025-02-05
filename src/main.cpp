@@ -1,113 +1,8 @@
 #include <gui.h>
 
 
-//=============================OpenGL Variables==============================
-
-GLuint dotVAO, dotVBO;
-GLuint wireframeVAO, wireframeVBO, wireframeEBO;
-GLuint triangleVAO, triangleVBO, triangleEBO;
-GLuint raytracingVAO, raytracingVBO, raytracingEBO;
-GLuint lightUBO;
-GLuint lightVAO, lightVBO;
-GLuint quadVAO, quadVBO, quadEBO;
-GLuint colormapVAO, colormapVBO, colormapEBO;
-GLuint edgeDetectionVAO, edgeDetectionVBO, edgeDetectionEBO;
-GLuint heightMapTexture, normalMapTexture, colorMapTexture, edgeMapTexture;
-
-int dotAmount, wireframeVerticesAmount, triangleVerticesAmount;
-std::vector<glm::vec3> vertices;
-std::vector<glm::vec3> normals;
-glm::vec3 aabbMin, aabbMax;
-
-
-// Shaders
-Shader lightShader;
-Shader dotShader;
-Shader quadShader;
-Shader triangleShader;
-Shader lineShader;
-Shader raytracingShader;
-Shader gaussianBlurShader;
-Shader edgeDetectionShader;
-Shader colormapVisualizationShader;
-
-
-const unsigned int QUAD_INDICES[] = {
-        0, 1, 2,  // First Triangle
-        2, 3, 0   // Second Triangle
-};
-
-const std::vector<float> RAYTRACING_VERTICES = {
-    // Positions       // Texture Coords
-    -1.0f, -1.0f, 0.0f,  0.0f, 0.0f,  // Bottom-left
-     1.0f, -1.0f, 0.0f,  1.0f, 0.0f,  // Bottom-right
-     1.0f,  1.0f, 0.0f,  1.0f, 1.0f,  // Top-right
-    -1.0f,  1.0f, 0.0f,  0.0f, 1.0f   // Top-left
-};
-
-const std::vector<float> COLORMAP_VERTICES = {
-    // Positions           // Texture Coords
-    -0.95f, -0.95f, 0.0f,  0.0f, 0.0f,  // Bottom-left
-    -0.75f, -0.95f, 0.0f,  1.0f, 0.0f,  // Bottom-right
-    -0.75f, -0.90f, 0.0f,  1.0f, 1.0f,  // Top-right
-    -0.95f, -0.90f, 0.0f,  0.0f, 1.0f   // Top-left
-};
-
-//===========================================================================
-
-
 
 //============================Vertices Functions=============================
-
-static void clearAndLoadNewVertices(const std::vector<glm::vec3>& vertices, GLuint* VAO, GLuint* VBO) {
-    // Clean previous VAO and VBO
-    glDeleteVertexArrays(1, VAO);
-    glDeleteBuffers(1, VBO);
-
-    // Generate new VAO and VBO
-    glGenVertexArrays(1, VAO);
-    glGenBuffers(1, VBO);
-    glBindVertexArray(*VAO);
-
-    // Upload all the dot positions to the VBO
-    glBindBuffer(GL_ARRAY_BUFFER, *VBO);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), vertices.data(), GL_STATIC_DRAW);
-
-    // Define the vertex attribute for position
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-}
-
-static void clearAndLoadNewVerticesAndEBO(const std::vector<glm::vec3>& vertices, const std::vector<unsigned int>& indices, GLuint* VAO, GLuint* VBO, GLuint* EBO) {
-    // Clean previous VAO, VBO and EBO
-    glDeleteVertexArrays(1, VAO);
-    glDeleteBuffers(1, VBO);
-    glDeleteBuffers(1, EBO);
-
-    // Generate new VAO, VBO and EBO
-    glGenVertexArrays(1, VAO);
-    glGenBuffers(1, VBO);
-    glGenBuffers(1, EBO);
-    glBindVertexArray(*VAO);
-
-    // Upload all the vertex positions to the VBO
-    glBindBuffer(GL_ARRAY_BUFFER, *VBO);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), vertices.data(), GL_STATIC_DRAW);
-
-    // Upload all the vertex indices to the EBO
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, *EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
-
-    // Define the vertex attribute for position
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glBindVertexArray(0);
-}
-
 
 static std::vector<glm::vec3> loadVertices(const ImageData& data, glm::vec3& aabbMin, glm::vec3& aabbMax) {
     auto start = std::chrono::high_resolution_clock::now();
@@ -188,7 +83,7 @@ static int loadWireframeVertices(int width, int height, const std::vector<glm::v
             indices.push_back(i + width);
         }
     }
-    clearAndLoadNewVerticesAndEBO(vertices, indices, wireframeVAO, wireframeVBO, wireframeEBO);
+    clearAndLoadNewVerticesAndIndices(vertices, indices, wireframeVAO, wireframeVBO, wireframeEBO);
     auto end = std::chrono::high_resolution_clock::now();
     printElapsedTime(start, end, "Loading of wireframe vertices");
     return indices.size();
@@ -212,7 +107,7 @@ static int loadTriangleVertices(int width, int height, const std::vector<glm::ve
             indices.push_back(bottom_right);
         }
     }
-    clearAndLoadNewVerticesAndEBO(vertices, indices, triangleVAO, triangleVBO, triangleEBO);
+    clearAndLoadNewVerticesAndIndices(vertices, indices, triangleVAO, triangleVBO, triangleEBO);
     auto end = std::chrono::high_resolution_clock::now();
     printElapsedTime(start, end, "Loading of triangle vertices");
     return indices.size();
@@ -346,107 +241,6 @@ static GLuint createEdgeMapTexture(const ImageData& data, const int smallGaussia
 //===========================================================================
 
 
-
-static void loadNextColorMap() {
-    activeColorMap = (activeColorMap + 1) % colorMaps.size();
-    colorMapTexture = createTexture(colorMaps[activeColorMap]);
-}
-
-
-// Key Pressed Handler
-static void keyPressedHandler(int key, int /* scancode */, int action, int /* mods */) {
-    if (key == GLFW_KEY_TAB && action == GLFW_PRESS) {
-        showGui = !showGui;
-    }
-
-    if (action != GLFW_RELEASE)
-        return;
-
-    const bool shiftPressed = WINDOW->isKeyPressed(GLFW_KEY_LEFT_SHIFT) || WINDOW->isKeyPressed(GLFW_KEY_RIGHT_SHIFT);
-
-    switch (key) {
-    case GLFW_KEY_H: {
-        printHelp();
-        return;
-    }
-    case GLFW_KEY_L: {
-        if (shiftPressed)
-            lights.push_back(Light{ TRACKBALL->position(), glm::vec3(1) });
-        else
-            lights[selectedLightIndex].position = TRACKBALL->position();
-        return;
-    }
-    case GLFW_KEY_UP: {
-        selectPreviousLight();
-        return;
-    }
-    case GLFW_KEY_DOWN: {
-        selectNextLight();
-        return;
-    }
-    case GLFW_KEY_N: {
-        resetLights();
-        return;
-    }
-    case GLFW_KEY_DELETE: {
-        deleteLight();
-        return;
-    }
-    case GLFW_KEY_C: {
-        loadNextColorMap();
-        return;
-    }
-    case GLFW_KEY_R: {
-        if (shiftPressed) { // If shift pressed, decrease selected light red channel by 0.1
-            if (lights[selectedLightIndex].color.x >= 0.1f)
-                lights[selectedLightIndex].color.x -= 0.1f;
-        }
-        else { // Else, increase selected light red channel by 0.1
-            if (lights[selectedLightIndex].color.x <= 0.9f)
-                lights[selectedLightIndex].color.x += 0.1f;
-        }
-        std::cout << "Light " << selectedLightIndex << " color : [" << lights[selectedLightIndex].color.x << ", "
-            << lights[selectedLightIndex].color.y << ", "
-            << lights[selectedLightIndex].color.z << "]"
-            << std::endl;
-        return;
-    }
-    case GLFW_KEY_G: {
-        if (shiftPressed) { // If shift pressed, decrease selected light green channel by 0.1
-            if (lights[selectedLightIndex].color.y >= 0.1f)
-                lights[selectedLightIndex].color.y -= 0.1f;
-        }
-        else { // Else, increase selected light green channel by 0.1
-            if (lights[selectedLightIndex].color.y <= 0.9f)
-                lights[selectedLightIndex].color.y += 0.1f;
-        }
-        std::cout << "Light " << selectedLightIndex << " color : [" << lights[selectedLightIndex].color.x << ", "
-            << lights[selectedLightIndex].color.y << ", "
-            << lights[selectedLightIndex].color.z << "]"
-            << std::endl;
-        return;
-    }
-    case GLFW_KEY_B: {
-        if (shiftPressed) { // If shift pressed, decrease selected light blue channel by 0.1
-            if (lights[selectedLightIndex].color.z >= 0.1f)
-                lights[selectedLightIndex].color.z -= 0.1f;
-        }
-        else { // Else, increase selected light blue channel by 0.1
-            if (lights[selectedLightIndex].color.z <= 0.9f)
-                lights[selectedLightIndex].color.z += 0.1f;
-        }
-        std::cout << "Light " << selectedLightIndex << " color : [" << lights[selectedLightIndex].color.x << ", "
-            << lights[selectedLightIndex].color.y << ", "
-            << lights[selectedLightIndex].color.z << "]"
-            << std::endl;
-        return;
-    }
-    default:
-        return;
-    };
-}
-
-
 // Program entry point. Everything starts here.
 int main(int argc, char** argv)
 {
@@ -455,9 +249,11 @@ int main(int argc, char** argv)
     WINDOW = &w;
     Trackball t{ WINDOW, glm::radians(50.0) };
     TRACKBALL = &t;
+    WINDOW->registerKeyCallback(keyPressedHandler);
     glEnable(GL_DEPTH);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_DEBUG_OUTPUT);
+    initializeShaders();
 
     // Parse initial scene config TOML
     readInitialConfig(TRACKBALL, imageData, colorMaps, lights);
@@ -465,39 +261,6 @@ int main(int argc, char** argv)
     renderSize = imageData.renderSize;
     int largeBlurSize = edgeLargeBlurSize, smallBlurSize = edgeSmallBlurSize;
     maxRenderDistance = renderSize;
-    WINDOW->registerKeyCallback(keyPressedHandler);
-
-
-    // Shaders
-    lightShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/light_vertex.glsl")
-        .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/light_frag.glsl")
-        .build();
-    dotShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/dot_vertex.glsl")
-        .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/dot_frag.glsl")
-        .build();
-    quadShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/quad_vertex.glsl")
-        .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/quad_frag.glsl")
-        .build();
-    triangleShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/triangle_vertex.glsl")
-        .addStage(GL_GEOMETRY_SHADER, RESOURCE_ROOT "shaders/triangle_geometry.glsl")
-        .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/triangle_frag.glsl")
-        .build();
-    lineShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/triangle_vertex.glsl")
-        .addStage(GL_GEOMETRY_SHADER, RESOURCE_ROOT "shaders/line_geometry.glsl")
-        .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/dot_frag.glsl")
-        .build();
-    raytracingShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/raytracing_vertex.glsl")
-        .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/raytracing_frag.glsl")
-        .build();
-    gaussianBlurShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/raytracing_vertex.glsl")
-        .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/gaussian_blur.glsl")
-        .build();
-    edgeDetectionShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/raytracing_vertex.glsl")
-        .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/edge_detection_frag.glsl")
-        .build();
-    colormapVisualizationShader = ShaderBuilder().addStage(GL_VERTEX_SHADER, RESOURCE_ROOT "shaders/raytracing_vertex.glsl")
-        .addStage(GL_FRAGMENT_SHADER, RESOURCE_ROOT "shaders/quad_frag.glsl")
-        .build();
 
 
     // Create color map texture
