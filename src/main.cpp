@@ -57,14 +57,6 @@ static std::vector<glm::vec3> computeNormalMap(const ImageData& data, const std:
     return normalMap;
 }
 
-static void loadDotVertices(const std::vector<glm::vec3>& vertices, GLuint* dotVAO, GLuint* dotVBO) {
-    auto start = std::chrono::high_resolution_clock::now();
-    clearAndLoadNewVertices(vertices, dotVAO, dotVBO);
-    auto end = std::chrono::high_resolution_clock::now();
-    printElapsedTime(start, end, "Loading of dot vertices");
-    return;
-}
-
 static int loadWireframeVertices(int width, int height, const std::vector<glm::vec3>& vertices, GLuint* wireframeVAO, GLuint* wireframeVBO, GLuint* wireframeEBO) {
     auto start = std::chrono::high_resolution_clock::now();
     std::vector<unsigned int> indices;
@@ -277,7 +269,7 @@ int main(int argc, char** argv)
     // Create dot cloud + wireframe vertices
     vertices = loadVertices(imageData, aabbMin, aabbMax);
     dotAmount = imageData.width * imageData.height;
-    loadDotVertices(vertices, &dotVAO, &dotVBO);
+    clearAndLoadNewVertices(vertices, &dotVAO, &dotVBO);
     wireframeVerticesAmount = loadWireframeVertices(imageData.width, imageData.height, vertices, &wireframeVAO, &wireframeVBO, &wireframeEBO);
 
     // Create triangle vertices
@@ -325,7 +317,7 @@ int main(int argc, char** argv)
             normals = computeNormalMap(imageData, vertices);
             normalMapTexture = createNormalTexture(imageData, normals);
             edgeMapTexture = createEdgeMapTexture(imageData, smallBlurSize, largeBlurSize);
-            loadDotVertices(vertices, &dotVAO, &dotVBO);
+            clearAndLoadNewVertices(vertices, &dotVAO, &dotVBO);
             wireframeVerticesAmount = loadWireframeVertices(imageData.width, imageData.height, vertices, &wireframeVAO, &wireframeVBO, &wireframeEBO);
             triangleVerticesAmount = loadTriangleVertices(imageData.width, imageData.height, vertices, &triangleVAO, &triangleVBO, &triangleEBO);
             loadFlatQuadVertices(imageData, quadVAO, quadVBO, quadEBO);
