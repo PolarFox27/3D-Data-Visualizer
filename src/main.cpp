@@ -7,7 +7,7 @@
 static std::vector<glm::vec3> loadVertices(const ImageData& data, glm::vec3& aabbMin, glm::vec3& aabbMax) {
     auto start = std::chrono::high_resolution_clock::now();
     std::vector<glm::vec3> vertices;
-    vertices.reserve(data.width * data.height * 2);
+    vertices.reserve(data.width * data.height);
     float minHeight = data.renderSize;
     float maxHeight = 0.0f;
 
@@ -19,12 +19,6 @@ static std::vector<glm::vec3> loadVertices(const ImageData& data, glm::vec3& aab
             else if (vertex.y > maxHeight) maxHeight = vertex.y;
             vertices.push_back(vertex);
         }
-    }
-
-    // Add base vertices for lines
-    for (int i = 0; i < data.height * data.width; i++) {
-        glm::vec3 v = vertices[i];
-        vertices.push_back(glm::vec3(v.x, 0.0f, v.z));
     }
 
     aabbMin = glm::vec3(-data.renderSize / 2.0f, minHeight, -data.renderSize / 2.0f);
@@ -81,7 +75,8 @@ static int loadWireframeVertices(int width, int height, const std::vector<glm::v
     return indices.size();
 }
 
-static int loadTriangleVertices(int width, int height, const std::vector<glm::vec3>& vertices, GLuint* triangleVAO, GLuint* triangleVBO, GLuint* triangleEBO) {
+static int loadTriangleVertices(int width, int height, const std::vector<glm::vec3>& vertices, 
+                                GLuint* triangleVAO, GLuint* triangleVBO, GLuint* triangleEBO) {
 
     auto start = std::chrono::high_resolution_clock::now();
     std::vector<unsigned int> indices;
@@ -369,6 +364,7 @@ int main(int argc, char** argv)
                 raytracingShader.bindUniformBlock("LightData", 0, lightUBO);
 
                 // Render
+
                 glBindVertexArray(raytracingVAO);
                 glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
                 glBindVertexArray(0);
