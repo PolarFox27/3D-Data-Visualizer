@@ -387,9 +387,12 @@ int main(int argc, char** argv)
 
             //Shader and variable setup
             dotShader.bind();
+            glUniform1i(dotShader.getUniformLocation("normalMap"), 1); // Pass texture unit 1
             glUniform1i(dotShader.getUniformLocation("colorMap"), 2); // Pass texture unit 2
+            glUniform1i(dotShader.getUniformLocation("edgeMap"), 3); // Pass texture unit 3
             glUniform1iv(dotShader.getUniformLocation("mode"), 1, &mode);
             glUniform1f(dotShader.getUniformLocation("renderHeight"), imageData.renderHeight);
+            glUniform1f(dotShader.getUniformLocation("renderSize"), imageData.renderSize);
             glUniform1f(dotShader.getUniformLocation("minDistanceToCamera"), 0.0f);
             glUniform1f(dotShader.getUniformLocation("maxDistanceToCamera"), maxRenderDistance);
             glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
@@ -406,9 +409,12 @@ int main(int argc, char** argv)
                 // Render lines
                 if (showLines) {
                     lineShader.bind();
+                    glUniform1i(lineShader.getUniformLocation("normalMap"), 1); // Pass texture unit 1
                     glUniform1i(lineShader.getUniformLocation("colorMap"), 2); // Pass texture unit 2
+                    glUniform1i(lineShader.getUniformLocation("edgeMap"), 3); // Pass texture unit 3
                     glUniform1iv(lineShader.getUniformLocation("mode"), 1, &mode);
                     glUniform1f(lineShader.getUniformLocation("renderHeight"), imageData.renderHeight);
+                    glUniform1f(lineShader.getUniformLocation("renderSize"), imageData.renderSize);
                     glUniform1f(lineShader.getUniformLocation("minDistanceToCamera"), 0.0f);
                     glUniform1f(lineShader.getUniformLocation("maxDistanceToCamera"), maxRenderDistance);
                     glUniformMatrix4fv(lineShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));

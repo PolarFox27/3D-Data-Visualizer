@@ -4,8 +4,7 @@ This program was created to teach the use of GLSL shaders as part of the Compute
 
 It is built for OpenGL version 4.1.
 
-
-## Usage
+***
 
 ### 1. Default Configuration
 
@@ -41,12 +40,9 @@ It has a 4 different parts:
  - **[camera]**: defines the initial position of the camera.
  - **[gradient]**: defines a list of color maps available for rendering the terrain.
 
+***
 
-### 2. User Interface
-
-
-
-### 3. Navigation and Keyboard Shortcuts
+### 2. Navigation and Keyboard Shortcuts
 
  - **Camera Movement using the mouse**
 

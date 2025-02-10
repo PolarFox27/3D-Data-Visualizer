@@ -50,27 +50,23 @@ vec3 computeDiffuseLighting(vec3 Id, vec3 Kd, vec3 position, vec3 light) {
     return Id * Kd * intensity;
 }
 
-//********************************************************
-
-
-
-void main() {
+vec3 computeColorAtPos(vec3 pos){
     // Compute the surface color based on the render mode
     vec3 surfaceColor;
     switch(mode){
 
-        case 1: // Mode 1 : Hue gradient based on height.
+        case 1: // Mode 1 : gradient based on height.
             surfaceColor = computeGradient(pos.y, 0, renderHeight);
             break;  
 
-        case 2: // Mode 2 : Hue gradient based on slope steepness
+        case 2: // Mode 2 : gradient based on slope steepness
             vec3 normal = getTerrainNormalAtPos(pos);
             float value = 1.0 - abs(dot(normal, vec3(0, 1, 0)));
             surfaceColor = computeGradient(value, 0.0, 1.0);
             break;
 
         case 3: // Mode 3 : Different colors for peaks and valleys
-            surfaceColor = computeGradient(getEdgeAtPos(pos).y, 0.2, 0);
+            surfaceColor = computeGradient(getEdgeAtPos(pos).y, 0.1, 0);
             break;
             
         default: // Mode 0 : Fixed color
@@ -83,5 +79,14 @@ void main() {
     for (int i = 0; i < lightAmount; i++){
         finalColor += computeDiffuseLighting(lightColor[i].xyz, surfaceColor, pos, lightPos[i].xyz);
     }
+    return finalColor;
+}
+
+//********************************************************
+
+
+
+void main() {
+    vec3 finalColor = computeColorAtPos(pos);
     outColor = vec4(finalColor, 1.0);
 }

@@ -84,9 +84,10 @@ vec3 getEdgeAtPos(vec3 pos) {
 }
 
 // Compute the ray attributes for the ray tracing based on the texture coordinates.
-void computeRayAttributes(out vec3 origin, out vec3 direction){
+
+void computeRayAttributes(vec2 TexCoords, out vec3 origin, out vec3 direction) {
     // Find pixel position in the near clipping plane.
-    vec4 ndc = vec4(TexCoord * 2.0 - 1.0, 1.0, 1.0);
+    vec4 ndc = vec4(TexCoords * 2.0 - 1.0, 1.0, 1.0);
     vec4 rayClip = inverse(mvp) * ndc;
     rayClip = rayClip / rayClip.w;
 
@@ -134,7 +135,7 @@ vec3 computeColorAtPos(vec3 pos){
             break;
 
         case 3: // Mode 3 : Different colors for peaks and valleys
-            surfaceColor = computeGradient(getEdgeAtPos(pos).y, 1, 0);
+            surfaceColor = computeGradient(getEdgeAtPos(pos).y, 0.2, 0);
             break;
             
         default: // Mode 0 : Fixed color
@@ -153,7 +154,7 @@ vec3 computeColorAtPos(vec3 pos){
 //********************************************************************
 
 
-vec3 rayBinarySearch(vec3 pos1, vec3 pos2, bool isUnder){
+vec3 rayBinarySearch(vec3 pos1, vec3 pos2, bool isUnder) {
     for(int i = 0; i < 20; i++){
         vec3 middle = (pos2 + pos1)/2;
         float height = getTerrainHeightAtPos(middle);
@@ -201,7 +202,7 @@ vec3 rayMarching(vec3 origin, vec3 direction, float tNear, float tFar, out bool 
 void main() {
     // Create ray for ray tracing
     vec3 rayOrigin, rayDirection;
-    computeRayAttributes(rayOrigin, rayDirection);
+    computeRayAttributes(TexCoord, rayOrigin, rayDirection);
 
     // Try intersecting ray with the AABB
     float tNear, tFar;
