@@ -15,13 +15,10 @@ out vec3 pos;
 //*******************HELPER FUNCTIONS*********************
 
 // Compare lines and check if the first line is above the second line
-bool compareLines(vec3 p1, vec3 p2, vec3 q1, vec3 q2){
-    return p1.y > p2.y;
-}
-
-// Compute the normal of the triangle
-vec3 computeNormal(vec3 v0, vec3 v1, vec3 v2) {
-    return normalize(cross(v1 - v0, v2 - v0));
+bool compareLines(vec3 p1, vec3 p2, vec3 q1, vec3 q2) {
+    float pHeight = (p1.y + p2.y) * 0.5;
+    float qHeight = (q1.y + q2.y) * 0.5;
+    return pHeight > qHeight;
 }
 
 //********************************************************
@@ -38,10 +35,6 @@ void main() {
     // Choose the heighest diagonal
     if(compareLines(v0, v2, v1, v3)) {  // Diagonal v0 - v2 is better
         
-        // Compute normals
-        vec3 normal1 = computeNormal(v0, v1, v2);
-        vec3 normal2 = computeNormal(v2, v3, v0);
-        
         // Create triangle 1 on screen
         gl_Position = mvp * vec4(v0, 1.0); pos = v0; EmitVertex();
         gl_Position = mvp * vec4(v1, 1.0); pos = v1; EmitVertex();
@@ -55,10 +48,6 @@ void main() {
         EndPrimitive();
     }
     else {                                                                           // Diagonal v1 - v3 is better
-        
-        // Compute normals
-        vec3 normal3 = computeNormal(v0, v1, v3);
-        vec3 normal4 = computeNormal(v2, v3, v1);
 
         // Create triangle 1 on screen
         gl_Position = mvp * vec4(v0, 1.0); pos = v0; EmitVertex();

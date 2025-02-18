@@ -261,10 +261,12 @@ int main(int argc, char** argv)
     loadQuadVertices(raytracingVAO, raytracingVBO, raytracingEBO, RAYTRACING_VERTICES);
     loadQuadVertices(colormapVAO, colormapVBO, colormapEBO, COLORMAP_VERTICES);
 
-    // Create dot cloud + wireframe vertices
+    // Create dot cloud
     vertices = loadVertices(imageData, aabbMin, aabbMax);
     dotAmount = imageData.width * imageData.height;
     clearAndLoadNewVertices(vertices, &dotVAO, &dotVBO);
+    
+    // Create wireframe
     wireframeVerticesAmount = loadWireframeVertices(imageData.width, imageData.height, vertices, &wireframeVAO, &wireframeVBO, &wireframeEBO);
 
     // Create triangle vertices
@@ -375,7 +377,7 @@ int main(int argc, char** argv)
             // Draw Flat Image
             if (showFlatQuad) {
                 quadShader.bind();
-                glUniform1i(quadShader.getUniformLocation("inputTexture"), 3); // Pass texture unit 0
+                glUniform1i(quadShader.getUniformLocation("inputTexture"), 0); // Pass texture unit 0
                 glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
                 glUniform1f(quadShader.getUniformLocation("height"), height);
 
@@ -406,6 +408,13 @@ int main(int argc, char** argv)
                 glBindVertexArray(dotVAO);
                 glDrawArrays(GL_POINTS, 0, dotAmount);
 
+
+                // Render wireframe
+                if (showWireframe) {
+                    glBindVertexArray(wireframeVAO);
+                    glDrawElements(GL_LINES, wireframeVerticesAmount, GL_UNSIGNED_INT, 0);
+                }
+
                 // Render lines
                 if (showLines) {
                     lineShader.bind();
@@ -422,11 +431,6 @@ int main(int argc, char** argv)
                     glDrawArrays(GL_POINTS, 0, dotAmount);
                 }
 
-                // Render wireframe
-                if (showWireframe) {
-                    glBindVertexArray(wireframeVAO);
-                    glDrawElements(GL_LINES, wireframeVerticesAmount, GL_UNSIGNED_INT, 0);
-                }
                 glBindVertexArray(0);
             }
 
