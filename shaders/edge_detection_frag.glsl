@@ -15,6 +15,6 @@ uniform sampler2D largeBlurredTexture;
 void main() {
     vec3 original = texture(originalBlurredTexture, TexCoord).rgb;
     vec3 large = texture(largeBlurredTexture, TexCoord).rgb;
-    vec3 edge = vec3(original.x, abs(original.y - large.y), original.z);
+    vec3 edge = vec3(original.x, abs(large.y - original.y), original.z);
     FragColor = vec4(edge, 1.0);
 }

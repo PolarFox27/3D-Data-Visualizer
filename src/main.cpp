@@ -4,6 +4,17 @@
 
 //============================Vertices Functions=============================
 
+/**
+ * @brief Creates a list of vertices from an image.
+ * 
+ * This function creates a list of vertices, where each vertex represents a pixel in the heightmap.
+ * It also keeps track of the minimum and maximum value to compute the bounding box of the dot clouds.
+ * 
+ * @param data Heightmap image.
+ * @param aabbMin Reference to a 3D vector storing the minimum position of the bounding box.
+ * @param aabbMin Reference to a 3D vector storing the maximum position of the bounding box.
+ * @return An array of 3D vertex positions.
+ */
 static std::vector<glm::vec3> loadVertices(const ImageData& data, glm::vec3& aabbMin, glm::vec3& aabbMax) {
     auto start = std::chrono::high_resolution_clock::now();
     std::vector<glm::vec3> vertices;
@@ -29,6 +40,17 @@ static std::vector<glm::vec3> loadVertices(const ImageData& data, glm::vec3& aab
     return vertices;
 }
 
+/**
+ * @brief Computes the normal map from the vertices.
+ * 
+ * This function computes the normal map by computing the derivatives in the x and z directions for every vertex.
+ * It uses a reference to the heightmap to find the dimensions of the heightmap. (and by extension the normal map)
+ * For each vertex, it computes the normal vector and stores it in an array.
+ * 
+ * @param data Heightmap image.
+ * @param vertices Array of 3D vertex positions.
+ * @return Array of 3D vectors representing the normal map.
+ */
 static std::vector<glm::vec3> computeNormalMap(const ImageData& data, const std::vector<glm::vec3>& vertices) {
     auto start = std::chrono::high_resolution_clock::now();
     std::vector<glm::vec3> normalMap;
@@ -51,6 +73,21 @@ static std::vector<glm::vec3> computeNormalMap(const ImageData& data, const std:
     return normalMap;
 }
 
+/**
+ * @brief Computes indices for the wireframe and loads them in a VAO, VBO and EBO.
+ * 
+ * This function computes the indices needed to render the wireframe based on the vertices array and the dimensions of the heightmap.
+ * It then loads the vertices and newly computed indices into a VAO, VBO and EBO.
+ * It also computes the amount of indices in the array, it will be used to render the wireframe.
+ * 
+ * @param width Width of the heightmap.
+ * @param height Height of the heightmap.
+ * @param vertices Array of vertex positions.
+ * @param wireframeVAO Reference to where the VAO will be stored.
+ * @param wireframeVBO Reference to where the VBO will be stored.
+ * @param wireframeEBO Reference to where the EBO will be stored.
+ * @return the size of the array of indices.
+ */
 static int loadWireframeVertices(int width, int height, const std::vector<glm::vec3>& vertices, GLuint* wireframeVAO, GLuint* wireframeVBO, GLuint* wireframeEBO) {
     auto start = std::chrono::high_resolution_clock::now();
     std::vector<unsigned int> indices;
@@ -75,7 +112,22 @@ static int loadWireframeVertices(int width, int height, const std::vector<glm::v
     return indices.size();
 }
 
-static int loadTriangleVertices(int width, int height, const std::vector<glm::vec3>& vertices, 
+/**
+ * @brief Computes indices for the triangles and loads them in a VAO, VBO and EBO.
+ *
+ * This function computes the indices needed to render the triangles based on the vertices array and the dimensions of the heightmap.
+ * It then loads the vertices and newly computed indices into a VAO, VBO and EBO.
+ * It also computes the amount of indices in the array, it will be used to render the triangles.
+ *
+ * @param width Width of the heightmap.
+ * @param height Height of the heightmap.
+ * @param vertices Array of vertex positions.
+ * @param wireframeVAO Reference to where the VAO will be stored.
+ * @param wireframeVBO Reference to where the VBO will be stored.
+ * @param wireframeEBO Reference to where the EBO will be stored.
+ * @return the size of the array of indices.
+ */
+static int loadTriangleVertices(int width, int height, const std::vector<glm::vec3>& vertices,
                                 GLuint* triangleVAO, GLuint* triangleVBO, GLuint* triangleEBO) {
 
     auto start = std::chrono::high_resolution_clock::now();
@@ -100,7 +152,18 @@ static int loadTriangleVertices(int width, int height, const std::vector<glm::ve
     return indices.size();
 }
 
-
+/**
+ * @brief Computes indices for a quad and loads them in a VAO, VBO and EBO.
+ * 
+ * This function takes in the 4 corners of a quad.
+ * It then stores it as the 6 corners of 2 triangles inside a VAO, VBO and EBO.
+ * It uses the QUAD_INDICES array as indices in the EBO.
+ * 
+ * @param VAO Reference to where the VAO will be stored.
+ * @param VBO Reference to where the VBO will be stored.
+ * @param EBO Reference to where the EBO will be stored.
+ * @param vertices Array of vertex positions, the 4 corners of the quad.
+ */
 static void loadQuadVertices(GLuint& VAO, GLuint& VBO, GLuint& EBO, const std::vector<float>& vertices) {
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
@@ -129,6 +192,19 @@ static void loadQuadVertices(GLuint& VAO, GLuint& VBO, GLuint& EBO, const std::v
     glBindVertexArray(0);
 }
 
+/**
+ * @brief Computes indices for a flat image and loads them in a VAO, VBO and EBO.
+ *
+ * This function computes the 4 corners of the flat quad on the XZ plane.
+ * The flat quad has the same width and height as the render dimensions of the image.
+ * It then stores it as the 6 corners of 2 triangles inside a VAO, VBO and EBO.
+ * It uses the QUAD_INDICES array as indices in the EBO.
+ *
+ * @param data Heightmap image, also storing the render dimensions.
+ * @param VAO Reference to where the VAO will be stored.
+ * @param VBO Reference to where the VBO will be stored.
+ * @param EBO Reference to where the EBO will be stored.
+ */
 static void loadFlatQuadVertices(const ImageData& data, GLuint& quadVAO, GLuint& quadVBO, GLuint& quadEBO) {
     float offsetX = -0.5f * data.renderSize / static_cast<float>(data.width);
     float offsetZ = -0.5f * data.renderSize / static_cast<float>(data.height);
@@ -142,6 +218,15 @@ static void loadFlatQuadVertices(const ImageData& data, GLuint& quadVAO, GLuint&
     loadQuadVertices(quadVAO, quadVBO, quadEBO, vertices);
 }
 
+/**
+ * @brief Stores the lights into a UBO.
+ * 
+ * This function arranges the lights positions and colors as the data of a UBO.
+ * This UBO can then be used by the shader programs.
+ * 
+ * @param lightArray Array of Light structs, representing the light sources.
+ * @param UBO ID of the UBO which will contain the light data.  
+ */
 static void loadLightsToUBO(const std::vector<Light>& lightArray, GLuint UBO) {
     // Arrange data in the correct format
     glBindBuffer(GL_UNIFORM_BUFFER, UBO);
@@ -157,6 +242,17 @@ static void loadLightsToUBO(const std::vector<Light>& lightArray, GLuint UBO) {
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
+/**
+ * @brief Creates an edge map OpenGL texture of the heightmap using a Difference of Gaussian.
+ * 
+ * This function computes the edge map of the height map image and returns it as an OpenGL 2D texture.
+ * It computes it using a Difference of Gaussian, and texture ping-ponging.
+ * 
+ * @param data Heightmap image, also storing the dimensions of the image.
+ * @param smallGaussianFilterSize Radius of the first Gaussian filter.
+ * @param largeGaussianFilterSize Radius of the second Gaussian filter.
+ * @return ID of the OpenGL texture created, containing the edge map.
+ */
 static GLuint createEdgeMapTexture(const ImageData& data, const int smallGaussianFilterSize, const int largeGaussianFilterSize) {
     auto start = std::chrono::high_resolution_clock::now();
     GLuint pingpongFBO[5], pingpongTextures[5];
@@ -228,7 +324,9 @@ static GLuint createEdgeMapTexture(const ImageData& data, const int smallGaussia
 //===========================================================================
 
 
-// Program entry point. Everything starts here.
+/**
+ * @brief Main Function.
+ */
 int main(int argc, char** argv)
 {
     // Create program window

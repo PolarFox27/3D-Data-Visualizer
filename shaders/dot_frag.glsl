@@ -70,7 +70,7 @@ vec3 computeColorAtPos(vec3 pos){
             break;
 
         case 3: // Mode 3 : Different colors for peaks and valleys
-            intermediateColor = computeGradient(getEdgeAtPos(pos).y, 0.1, 0);
+            intermediateColor = computeGradient(getEdgeAtPos(pos).y, 0.0, 0.2);
 
             // Compute final color
             surfaceColor = mix(intermediateColor, BLACK, alpha);

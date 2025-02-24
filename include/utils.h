@@ -77,6 +77,14 @@ Trackball* TRACKBALL;               // Pointer to the camera trackball
 
 //=========================Config Loading Functions==========================
 
+/**
+ * @brief Parses a TOML array into a 3D vector.
+ * 
+ * This function parses an array in a TOML file into a 3-components float vector.
+ * 
+ * @param array TOML array parsed from the configuration file.
+ * @return A 3-components float vector.
+ */
 static glm::vec3 tomlArrayToVec3(const toml::array* array)
 {
     glm::vec3 output{ 0.0f };
@@ -101,6 +109,17 @@ static glm::vec3 tomlArrayToVec3(const toml::array* array)
 }
 
 
+/**
+ * @brief Reads an image from a file and returns a list of Pixels.
+ * 
+ * This function reads an image file and converts it to an array of Pixels values.
+ * It detects if the image is 8bits or 16bits, and converts 8bits images into 16bits Pixel values.
+ * 
+ * @param filePath Path to the image file.
+ * @param width Reference to an integer where the width of the loaded image will be stored.
+ * @param height Reference to an integer where the height of the loaded image will be stored.
+ * @return An array of Pixel values.
+ */
 static std::vector<Pixel> loadPixelsFromImage(const char* filePath, int& width, int& height) {
     // Reserve memory for the pixel data.
     std::vector<Pixel> pixels;
@@ -147,6 +166,18 @@ static std::vector<Pixel> loadPixelsFromImage(const char* filePath, int& width, 
 }
 
 
+/**
+ * @brief Configures the default scene based on the TOML config file.
+ * 
+ * This function parses the config file.
+ * It loads the heightmap and the colormap images.
+ * It then configures the camera trackball and the lights in the default scene.
+ * 
+ * @param trackball Reference to the camera trackball object to configure.
+ * @param image Reference to an ImageData where the heightmap will be stored.
+ * @param colorMaps Reference to an array of ImageData where the colormaps will be stored.
+ * @param lightList Refernece to an array of Light where the default scene lights will be stored.
+ */
 static void readInitialConfig(Trackball* trackball, ImageData& image, std::vector<ImageData>& colorMaps, std::vector<Light>& lightList) {
     const GLubyte* version = glGetString(GL_VERSION);
     std::cout << "OpenGL Version: " << version << std::endl;

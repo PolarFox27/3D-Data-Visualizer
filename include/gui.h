@@ -44,6 +44,11 @@ bool useBinarySearch = false;       // Whether binary search is used to get a cl
 
 //============================UI Helper Functions============================
 
+/**
+ * @brief Shows the help information.
+ * 
+ * This function prints all the keyboard shortcuts and their actions in the terminal.
+ */
 static void printHelp()
 {
     std::cout << std::endl << "********************Camera Usage:********************" << std::endl << std::endl;
@@ -70,6 +75,11 @@ static void printHelp()
     std::cout << std::endl << "*****************************************************" << std::endl << std::endl;
 }
 
+/**
+ * @brief Resets the scene to contain a single light.
+ * 
+ * This function removes all the lights from the scene, then adds a simple white light.
+ */
 static void resetLights()
 {
     lights.clear();
@@ -77,11 +87,17 @@ static void resetLights()
     selectedLightIndex = 0;
 }
 
+/**
+ * @brief Selects the next light source in the list.
+ */
 static void selectNextLight()
 {
     selectedLightIndex = (selectedLightIndex + 1) % lights.size();
 }
 
+/**
+ * @brief Selects the previous light source in the list.
+ */
 static void selectPreviousLight()
 {
     if (selectedLightIndex == 0)
@@ -89,6 +105,13 @@ static void selectPreviousLight()
     else
         --selectedLightIndex;
 }
+
+/**
+ * @brief Deletes the selected light source in the list.
+ * 
+ * This function removes the selected light from the list.
+ * If there is a single light left, it will not be removed.
+ */
 
 static void deleteLight()
 {
@@ -101,7 +124,17 @@ static void deleteLight()
         selectedLightIndex -= 1;
 }
 
-// Prints the time elapsed during the start and end points
+/**
+ * @brief Prints the time taken by a function.
+ * 
+ * This function computes the duration between the start and end moments.
+ * This function prints the custom text, then the duration.
+ * It is used for debugging purposes.
+ * 
+ * @param start Start moment.
+ * @param end End moment.
+ * @param text Custom text to print.
+ */
 static void printElapsedTime(std::chrono::time_point<std::chrono::high_resolution_clock> start,
     std::chrono::time_point<std::chrono::high_resolution_clock> end,
     const char* text) {
@@ -115,12 +148,25 @@ static void printElapsedTime(std::chrono::time_point<std::chrono::high_resolutio
     }
 }
 
+/**
+ * @brief Switches to the next colormap.
+ * 
+ * This function sets the next colormap in the list as the active colormap used in the rendering.
+ */
 static void loadNextColorMap() {
     activeColorMap = (activeColorMap + 1) % colorMaps.size();
     colorMapTexture = createTexture(colorMaps[activeColorMap]);
 }
 
-// Key Pressed Handler
+/**
+ * @brief Handles keyboard inputs.
+ * 
+ * This function is called when a key is pressed.
+ * If the key is one of the shortcuts, it performs the corresponding action.
+ * 
+ * @param key Key code of the used key.
+ * @param action Action performed on the key (pressed, released, etc)
+ */
 static void keyPressedHandler(int key, int /* scancode */, int action, int /* mods */) {
     if (key == GLFW_KEY_TAB && action == GLFW_PRESS) {
         showGui = !showGui;
@@ -213,7 +259,11 @@ static void keyPressedHandler(int key, int /* scancode */, int action, int /* mo
     };
 }
 
-// Draws the UI menu
+/**
+ * @brief Renders the GUI.
+ * 
+ * This functions renders all the GUI elements present in the menu to configure the program.
+ */
 static void renderGUI()
 {
     // UI Menu
