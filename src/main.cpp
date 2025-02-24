@@ -40,6 +40,7 @@ static std::vector<glm::vec3> loadVertices(const ImageData& data, glm::vec3& aab
     return vertices;
 }
 
+
 /**
  * @brief Computes the normal map from the vertices.
  * 
@@ -73,6 +74,7 @@ static std::vector<glm::vec3> computeNormalMap(const ImageData& data, const std:
     return normalMap;
 }
 
+
 /**
  * @brief Computes indices for the wireframe and loads them in a VAO, VBO and EBO.
  * 
@@ -89,28 +91,16 @@ static std::vector<glm::vec3> computeNormalMap(const ImageData& data, const std:
  * @return the size of the array of indices.
  */
 static int loadWireframeVertices(int width, int height, const std::vector<glm::vec3>& vertices, GLuint* wireframeVAO, GLuint* wireframeVBO, GLuint* wireframeEBO) {
-    auto start = std::chrono::high_resolution_clock::now();
-    std::vector<unsigned int> indices;
-    int amount = width * height;
-    indices.reserve(amount*2);
-
-    for (int i = 0; i < amount; i++) {
-
-        if ((i + 1) % width > 0) {
-            indices.push_back(i);
-            indices.push_back(i+1);
-        }
-
-        if (i + width < amount) {
-            indices.push_back(i);
-            indices.push_back(i + width);
-        }
-    }
-    clearAndLoadNewVerticesAndIndices(vertices, indices, wireframeVAO, wireframeVBO, wireframeEBO);
-    auto end = std::chrono::high_resolution_clock::now();
-    printElapsedTime(start, end, "Loading of wireframe vertices");
-    return indices.size();
+    /*
+    * == Code Snippet 5 ==
+    * 1. Create an empty array to store the indices.
+    * 2. Add all the indices to form the wireframe.
+    * 3. Setup the VAO, VBO and EBO for the vertices and the computed indices.
+    * 4. Return the size of the array of indices.
+    */
+    return 0;
 }
+
 
 /**
  * @brief Computes indices for the triangles and loads them in a VAO, VBO and EBO.
@@ -129,33 +119,23 @@ static int loadWireframeVertices(int width, int height, const std::vector<glm::v
  */
 static int loadTriangleVertices(int width, int height, const std::vector<glm::vec3>& vertices,
                                 GLuint* triangleVAO, GLuint* triangleVBO, GLuint* triangleEBO) {
-
-    auto start = std::chrono::high_resolution_clock::now();
-    std::vector<unsigned int> indices;
-    indices.reserve(width * height * 4);
-
-    for (int z = 0; z < height-1; ++z) {
-        for (int x = 0; x < width-1; ++x) {
-            int bottom_left = z * width + x;
-            int top_left = (z+1) * width + x;
-            int top_right = (z + 1) * width + x + 1;
-            int bottom_right = z * width + x+1;
-            indices.push_back(bottom_left);
-            indices.push_back(top_left);
-            indices.push_back(top_right);
-            indices.push_back(bottom_right);
-        }
-    }
-    clearAndLoadNewVerticesAndIndices(vertices, indices, triangleVAO, triangleVBO, triangleEBO);
-    auto end = std::chrono::high_resolution_clock::now();
-    printElapsedTime(start, end, "Loading of triangle vertices");
-    return indices.size();
+    /*
+    * == Code Snippet 6 ==
+    * 1. Create an empty array to store the indices.
+    * 2. Add all the indices to form the triangles.
+    * 3. Setup the VAO, VBO and EBO for the vertices and the computed indices.
+    * 4. Return the size of the array of indices.
+    */
+    return 0;
 }
 
+
 /**
- * @brief Computes indices for a quad and loads them in a VAO, VBO and EBO.
+ * @brief Setup a VAO, VBO and EBO for a quad.
  * 
- * This function takes in the 4 corners of a quad.
+ * This function takes in the 4 corners of a quad, each represented by 5 float values:
+ *  - 3D world position
+ *  - 2D texture coordinate
  * It then stores it as the 6 corners of 2 triangles inside a VAO, VBO and EBO.
  * It uses the QUAD_INDICES array as indices in the EBO.
  * 
@@ -165,35 +145,20 @@ static int loadTriangleVertices(int width, int height, const std::vector<glm::ve
  * @param vertices Array of vertex positions, the 4 corners of the quad.
  */
 static void loadQuadVertices(GLuint& VAO, GLuint& VBO, GLuint& EBO, const std::vector<float>& vertices) {
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &EBO);
-
-    glBindVertexArray(VAO);
-
-    // Set up VBO
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * vertices.size(), vertices.data(), GL_STATIC_DRAW);
-
-    // Set up EBO
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(QUAD_INDICES), QUAD_INDICES, GL_STATIC_DRAW);
-
-    // Position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    // Texture coordinate attribute
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-
-    // Unbind
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+    /*
+    * == Code Snippet 7 ==
+    * 1. Generate and bind new VAO, VBO and EBO.
+    * 2. Upload the vertex data to the VBO.
+    * 3. Upload the quad index data to the EBO. (QUAD_INDICES)
+    * 4. Specify the vertex attribute for the 3D position of the vertex.
+    * 5. Specify the vertex attribute for the 2D texture coordinate of the vertex.
+    * 6. Unbind the VAO.
+    */
 }
 
+
 /**
- * @brief Computes indices for a flat image and loads them in a VAO, VBO and EBO.
+ * @brief Computes the vertices for a flat image and loads them in a VAO, VBO and EBO.
  *
  * This function computes the 4 corners of the flat quad on the XZ plane.
  * The flat quad has the same width and height as the render dimensions of the image.
@@ -223,23 +188,21 @@ static void loadFlatQuadVertices(const ImageData& data, GLuint& quadVAO, GLuint&
  * 
  * This function arranges the lights positions and colors as the data of a UBO.
  * This UBO can then be used by the shader programs.
+ * The UBO stores light as follow:
+ *  - first all the light positions aligned as vec4, then all the light colors, also aligned as vec4.
+ *  - The array size is thus 2 times MAX_LIGHT_AMOUNT
  * 
  * @param lightArray Array of Light structs, representing the light sources.
  * @param UBO ID of the UBO which will contain the light data.  
  */
 static void loadLightsToUBO(const std::vector<Light>& lightArray, GLuint UBO) {
-    // Arrange data in the correct format
-    glBindBuffer(GL_UNIFORM_BUFFER, UBO);
-    glm::vec4 lightData[2 * MAX_LIGHT_AMOUNT]{};
-
-    for (int i = 0; i < lightArray.size(); i++) {
-        lightData[i] = glm::vec4(lightArray[i].position, 1.0f);
-        lightData[MAX_LIGHT_AMOUNT + i] = glm::vec4(lightArray[i].color, 1.0f);
-    }
-
-    // Load data to the UBO
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, 2 * MAX_LIGHT_AMOUNT * sizeof(glm::vec4), lightData);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    /*
+    * == Code Snippet 8 ==
+    * 1. Bind the UBO.
+    * 2. Compute the light data as a vec4 array.
+    * 3. Upload the light data to the UBO.
+    * 4. Unbind the UBO.
+    */
 }
 
 /**
@@ -254,71 +217,22 @@ static void loadLightsToUBO(const std::vector<Light>& lightArray, GLuint UBO) {
  * @return ID of the OpenGL texture created, containing the edge map.
  */
 static GLuint createEdgeMapTexture(const ImageData& data, const int smallGaussianFilterSize, const int largeGaussianFilterSize) {
-    auto start = std::chrono::high_resolution_clock::now();
-    GLuint pingpongFBO[5], pingpongTextures[5];
-    glm::vec2 horizontalDir(1.0f / static_cast<float>(data.width), 0.0f), verticalDir(0.0f, 1.0f / static_cast<float>(data.height));
-    glGenFramebuffers(5, pingpongFBO);
-    glGenTextures(5, pingpongTextures);
-    glViewport(0, 0, data.width, data.height);
-    
-    // Creation of 5 frame buffers
-    for (int i = 0; i < 5; i++) {
-        glBindTexture(GL_TEXTURE_2D, pingpongTextures[i]);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, data.width, data.height, 0, GL_RGB, GL_UNSIGNED_SHORT, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[i]);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pingpongTextures[i], 0);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    }
-
-    // 2 Gaussian filters in 2 passes
-    for (int i = 0; i < 4; i++) {
-        GLuint texture = (i % 2 == 0) ? heightMapTexture : pingpongTextures[i - 1];
-        glm::vec2 direction = (i % 2 == 0) ? horizontalDir : verticalDir;
-        glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[i]);
-        gaussianBlurShader.bind();
-        glUniform1i(gaussianBlurShader.getUniformLocation("inputTexture"), 0);
-        glUniform2f(gaussianBlurShader.getUniformLocation("direction"), direction.x, direction.y);
-        glUniform1i(gaussianBlurShader.getUniformLocation("size"), (i/2 == 0) ? smallGaussianFilterSize : largeGaussianFilterSize);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture);
-        glBindVertexArray(raytracingVAO);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
-    }
-
-    // Final edge map texture
-    glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[4]);
-    edgeDetectionShader.bind();
-    glUniform1i(edgeDetectionShader.getUniformLocation("originalBlurredTexture"), 0);
-    glUniform1i(edgeDetectionShader.getUniformLocation("largeBlurredTexture"), 1);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, pingpongTextures[1]);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, pingpongTextures[3]);
-    glBindVertexArray(raytracingVAO);
-    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-    glBindVertexArray(0);
-
-    // Create final texture from the last frame buffer
-    GLuint finalTexture;
-    glGenTextures(1, &finalTexture);
-    glBindTexture(GL_TEXTURE_2D, finalTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, data.width, data.height, 0, GL_RGB, GL_UNSIGNED_SHORT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[4]);
-    glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, data.width, data.height, 0);
-
-    // Cleanup
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glViewport(0, 0, WIDTH, HEIGHT);
-    glDeleteBuffers(5, pingpongFBO);
-    glDeleteTextures(5, pingpongTextures);
-    auto end = std::chrono::high_resolution_clock::now();
-    printElapsedTime(start, end, "Edge Map Creation");
-    return finalTexture;
+    /*
+    * == Code Snippet 9 ==
+    * 1. Generate 5 textures and FBOs.
+    * 2. Set the viewport size to the heightmap dimensions.
+    * 3. For each texture: set its data to zero and setup its parameters for wrapping and scaling.
+    * 4. For each FBO: bind it to the corresponding texture.
+    * 5. Generate the edge map:
+    *  - Use 2 textures and FBOs to apply the small gaussian filter in 2 passes (horizontal then vertical)
+    *  - Use 2 textures and FBOs to apply similarly the large gaussian filter
+    *  - Use the final FBO and texture to make the edge map
+    * 6. Create a new texture and copy the texture data from the final FBO and texture.
+    * 7. Unbind the last FBO and delete the FBOs and textures.
+    * 8. Set the viewport back to its original size.
+    * 9. Return the texture.
+    */
+    return 0;
 }
 
 //===========================================================================
@@ -448,107 +362,86 @@ int main(int argc, char** argv)
         // Ray Tracing
         if (showRaytracingTab) {
             if (showRaytracing) {
-                raytracingShader.bind();
-                glUniform1i(raytracingShader.getUniformLocation("heightMap"), 0); // Pass texture unit 0
-                glUniform1i(raytracingShader.getUniformLocation("normalMap"), 1); // Pass texture unit 1
-                glUniform1i(raytracingShader.getUniformLocation("colorMap"), 2); // Pass texture unit 2
-                glUniform1i(raytracingShader.getUniformLocation("edgeMap"), 3); // Pass texture unit 3
-                glUniformMatrix4fv(raytracingShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
-                glUniform1iv(raytracingShader.getUniformLocation("maxSteps"), 1, &maxSteps);
-                glUniform3fv(raytracingShader.getUniformLocation("aabbMin"), 1, glm::value_ptr(aabbMin));
-                glUniform3fv(raytracingShader.getUniformLocation("aabbMax"), 1, glm::value_ptr(aabbMax));
-                glUniform1f(raytracingShader.getUniformLocation("renderHeight"), imageData.renderHeight);
-                glUniform1i(raytracingShader.getUniformLocation("lightAmount"), lights.size());
-                glUniform1iv(raytracingShader.getUniformLocation("mode"), 1, &mode);
-                glUniform1i(raytracingShader.getUniformLocation("binarySearch"), useBinarySearch);
-                raytracingShader.bindUniformBlock("LightData", 0, lightUBO);
-
-                // Render
-
-                glBindVertexArray(raytracingVAO);
-                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-                glBindVertexArray(0);
+                /*
+                * == Code Snippet 10 ==
+                * 1. Bind the Raytracing Shader and VAO.
+                * 2. Setup all the shader uniform parameters:
+                *  - heightMap, normalMap, colorMap, edgeMap
+                *  - mvp, maxSteps, aabbMin, aabbMax, renderHeight
+                *  - lightAmount, mode, binarySearch, LightData
+                * 3. Render using glDrawElements
+                * 4. Unbind the VAO.
+                */
             }
         }
 
         else {
             // Draw Flat Image
             if (showFlatQuad) {
-                quadShader.bind();
-                glUniform1i(quadShader.getUniformLocation("inputTexture"), 0); // Pass texture unit 0
-                glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
-                glUniform1f(quadShader.getUniformLocation("height"), height);
-
-                // Render the quad
-                glBindVertexArray(quadVAO);
-                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-                glBindVertexArray(0);
+                /*
+                * == Code Snippet 11 ==
+                * 1. Bind the Quad Shader and VAO.
+                * 2. Setup all the shader uniform parameters:
+                *  - inputTexture, mvp, height
+                * 3. Render using glDrawElements
+                * 4. Unbind the VAO.
+                */
             }
 
-            //Shader and variable setup
-            dotShader.bind();
-            glUniform1i(dotShader.getUniformLocation("normalMap"), 1); // Pass texture unit 1
-            glUniform1i(dotShader.getUniformLocation("colorMap"), 2); // Pass texture unit 2
-            glUniform1i(dotShader.getUniformLocation("edgeMap"), 3); // Pass texture unit 3
-            glUniform1iv(dotShader.getUniformLocation("mode"), 1, &mode);
-            glUniform1f(dotShader.getUniformLocation("renderHeight"), imageData.renderHeight);
-            glUniform1f(dotShader.getUniformLocation("renderSize"), imageData.renderSize);
-            glUniform1f(dotShader.getUniformLocation("minDistanceToCamera"), 0.0f);
-            glUniform1f(dotShader.getUniformLocation("maxDistanceToCamera"), maxRenderDistance);
-            glUniformMatrix4fv(dotShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
-            glUniform3fv(dotShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(cameraPos));
 
             // Draw dots
             if (showDots) {
 
-                // Render dots
-                glPointSize(dotSize);
-                glBindVertexArray(dotVAO);
-                glDrawArrays(GL_POINTS, 0, dotAmount);
+                /*
+                * == Code Snippet 12 ==
+                * 1. Bind the Dot Shader and VAO.
+                * 2. Setup all the shader uniform parameters:
+                *  - normalMap, colorMap, edgeMap
+                *  - mvp, mode, renderHeight, renderSize
+                *  - minDistanceToCamera, maxDistanceToCamera, cameraPos
+                * 3. Set the GL Point size
+                * 4. Render using glDrawArrays
+                * 5. Unbind the VAO.
+                */
 
 
                 // Render wireframe
                 if (showWireframe) {
-                    glBindVertexArray(wireframeVAO);
-                    glDrawElements(GL_LINES, wireframeVerticesAmount, GL_UNSIGNED_INT, 0);
+                    /*
+                    * == Code Snippet 13 ==
+                    * 1. Bind the wireframe VAO.
+                    * 4. Render using glDrawElements
+                    * 5. Unbind the VAO.
+                    */
                 }
 
                 // Render lines
                 if (showLines) {
-                    lineShader.bind();
-                    glUniform1i(lineShader.getUniformLocation("normalMap"), 1); // Pass texture unit 1
-                    glUniform1i(lineShader.getUniformLocation("colorMap"), 2); // Pass texture unit 2
-                    glUniform1i(lineShader.getUniformLocation("edgeMap"), 3); // Pass texture unit 3
-                    glUniform1iv(lineShader.getUniformLocation("mode"), 1, &mode);
-                    glUniform1f(lineShader.getUniformLocation("renderHeight"), imageData.renderHeight);
-                    glUniform1f(lineShader.getUniformLocation("renderSize"), imageData.renderSize);
-                    glUniform1f(lineShader.getUniformLocation("minDistanceToCamera"), 0.0f);
-                    glUniform1f(lineShader.getUniformLocation("maxDistanceToCamera"), maxRenderDistance);
-                    glUniformMatrix4fv(lineShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
-                    glUniform3fv(lineShader.getUniformLocation("cameraPos"), 1, glm::value_ptr(cameraPos));
-                    glDrawArrays(GL_POINTS, 0, dotAmount);
+                    /*
+                    * == Code Snippet 14 ==
+                    * 1. Bind the Line Shader and Dot VAO.
+                    * 2. Setup all the shader uniform parameters:
+                    *  - normalMap, colorMap, edgeMap
+                    *  - mvp, mode, renderHeight, renderSize
+                    *  - minDistanceToCamera, maxDistanceToCamera, cameraPos
+                    * 4. Render using glDrawArrays
+                    * 5. Unbind the VAO.
+                    */
                 }
-
-                glBindVertexArray(0);
             }
 
             // Draw triangles
             if (showTriangles) {
-                triangleShader.bind();
-                glUniform1i(triangleShader.getUniformLocation("normalMap"), 1); // Pass texture unit 1
-                glUniform1i(triangleShader.getUniformLocation("colorMap"), 2); // Pass texture unit 2
-                glUniform1i(triangleShader.getUniformLocation("edgeMap"), 3); // Pass texture unit 3
-                glUniform1f(triangleShader.getUniformLocation("renderSize"), imageData.renderSize);
-                glUniform1iv(triangleShader.getUniformLocation("mode"), 1, &mode);
-                glUniform1f(triangleShader.getUniformLocation("renderHeight"), imageData.renderHeight);
-                glUniform1i(triangleShader.getUniformLocation("lightAmount"), lights.size());
-                glUniformMatrix4fv(triangleShader.getUniformLocation("mvp"), 1, GL_FALSE, glm::value_ptr(mvp));
-
-                triangleShader.bindUniformBlock("LightData", 0, lightUBO);
-
-                glBindVertexArray(triangleVAO);
-                glDrawElements(GL_LINES_ADJACENCY, triangleVerticesAmount, GL_UNSIGNED_INT, 0);
-                glBindVertexArray(0);
+                /*
+                * == Code Snippet 15 ==
+                * 1. Bind the Triangle Shader and VAO.
+                * 2. Setup all the shader uniform parameters:
+                *  - normalMap, colorMap, edgeMap
+                *  - mvp, mode, renderHeight, renderSize
+                *  - lightAmount, LightData
+                * 4. Render using glDrawElements
+                * 5. Unbind the VAO.
+                */
             }
         }
 

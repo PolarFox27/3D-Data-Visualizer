@@ -104,6 +104,7 @@ static void initializeShaders() {
                                                  .build();
 }
 
+
 /**
  * @brief Creates an OpenGL texture from an image.
  * 
@@ -113,22 +114,16 @@ static void initializeShaders() {
  * @return ID of the generated texture.
  */
 static GLuint createTexture(const ImageData& data) {
-    GLuint texture;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-
-    // Set texture parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    // Upload texture data
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, data.width, data.height, 0, GL_RGB, GL_UNSIGNED_SHORT, data.pixels.data());
-
-    glBindTexture(GL_TEXTURE_2D, 0); // Unbind texture
-    return texture;
+    /*
+    * == Code Snippet 1 ==
+    * 1. Generate and bind a new texture.
+    * 2. Setup the texture parameters to define how the texture should be wrapped and scaled.
+    * 3. Upload the texture data from the given image.
+    * 4. Unbind and return the texture.
+    */
+    return 0;
 }
+
 
 /**
  * @brief Creates an OpenGL texture from a normal map.
@@ -142,22 +137,16 @@ static GLuint createTexture(const ImageData& data) {
  * @return ID of the generated normal map texture.
  */
 static GLuint createNormalTexture(const ImageData& data, const std::vector<glm::vec3>& normalMap) {
-    GLuint texture;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-
-    // Set texture parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    // Upload texture data
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, data.width, data.height, 0, GL_RGB, GL_FLOAT, normalMap.data());
-
-    glBindTexture(GL_TEXTURE_2D, 0); // Unbind texture
-    return texture;
+    /*
+    * == Code Snippet 2 ==
+    * 1. Generate and bind a new texture.
+    * 2. Setup the texture parameters to define how the texture should be wrapped and scaled.
+    * 3. Upload the texture data from the given normals.
+    * 4. Unbind and return the texture.
+    */
+    return 0;
 }
+
 
 /**
  * @brief Computes the relative height of a pixel.
@@ -173,6 +162,7 @@ static float getHeightFromPixel(Pixel pixel) {
         + 0.587f * static_cast<float>(pixel.G) / 65535.0f
         + 0.114f * static_cast<float>(pixel.B) / 65535.0f;
 }
+
 
 /**
  * @brief Computes the dot position from a heightmap pixel.
@@ -193,6 +183,7 @@ static glm::vec3 getVertexFromPixel(const ImageData& data, int x, int z) {
     return glm::vec3(xPos, y, zPos);
 }
 
+
 /**
  * @brief Creates a VAO and VBO for the given vertices.
  * 
@@ -204,26 +195,16 @@ static glm::vec3 getVertexFromPixel(const ImageData& data, int x, int z) {
  * @param VBO Reference to a VBO that will store the VBO for the vertices.
  */
 static void clearAndLoadNewVertices(const std::vector<glm::vec3>& vertices, GLuint* VAO, GLuint* VBO) {
-    // Clean previous VAO and VBO
-    glDeleteVertexArrays(1, VAO);
-    glDeleteBuffers(1, VBO);
-
-    // Generate new VAO and VBO
-    glGenVertexArrays(1, VAO);
-    glGenBuffers(1, VBO);
-    glBindVertexArray(*VAO);
-
-    // Upload all the dot positions to the VBO
-    glBindBuffer(GL_ARRAY_BUFFER, *VBO);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), vertices.data(), GL_STATIC_DRAW);
-
-    // Define the vertex attribute for position
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+    /*
+    * == Code Snippet 3 ==
+    * 1. Delete the previous VAO and VBO.
+    * 2. Generate and bind new VAO and VBO.
+    * 3. Upload the vertex data to the VBO.
+    * 4. Specify the vertex attribute for the 3D position of the vertex.
+    * 5. Unbind the VAO.
+    */
 }
+
 
 /**
  * @brief Creates a VAO, VBO, EBO for the given vertices and indices.
@@ -238,30 +219,15 @@ static void clearAndLoadNewVertices(const std::vector<glm::vec3>& vertices, GLui
  * @param EBO Reference to a EBO that will store the EBO for the vertices, containing the index data.
  */
 static void clearAndLoadNewVerticesAndIndices(const std::vector<glm::vec3>& vertices, const std::vector<unsigned int>& indices, GLuint* VAO, GLuint* VBO, GLuint* EBO) {
-    // Clean previous VAO, VBO and EBO
-    glDeleteVertexArrays(1, VAO);
-    glDeleteBuffers(1, VBO);
-    glDeleteBuffers(1, EBO);
-
-    // Generate new VAO, VBO and EBO
-    glGenVertexArrays(1, VAO);
-    glGenBuffers(1, VBO);
-    glGenBuffers(1, EBO);
-    glBindVertexArray(*VAO);
-
-    // Upload all the vertex positions to the VBO
-    glBindBuffer(GL_ARRAY_BUFFER, *VBO);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), vertices.data(), GL_STATIC_DRAW);
-
-    // Upload all the vertex indices to the EBO
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, *EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
-
-    // Define the vertex attribute for position
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glBindVertexArray(0);
+    /*
+    * == Code Snippet 4 ==
+    * 1. Delete the previous VAO, VBO and EBO.
+    * 2. Generate and bind new VAO, VBO and EBO.
+    * 3. Upload the vertex data to the VBO.
+    * 4. Upload the index data to the EBO.
+    * 5. Specify the vertex attribute for the 3D position of the vertex.
+    * 6. Unbind the VAO.
+    */
 }
 
 //===========================================================================
